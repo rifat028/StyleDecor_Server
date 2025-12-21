@@ -1,5 +1,5 @@
 require("dotenv").config();
-const { MongoClient, ServerApiVersion } = require("mongodb");
+const { MongoClient, ServerApiVersion, ObjectId } = require("mongodb");
 const express = require("express");
 const app = express();
 const port = process.env.PORT || 3000;
@@ -27,6 +27,42 @@ app.get("/", (req, res) => {
 async function run() {
   try {
     await client.connect();
+
+    const database = client.db("StyleDecorDB");
+    const serviceCollection = database.collection("services");
+
+    //create service
+    app.post("/services", async (req, res) => {
+      const newService = req.body;
+      const result = await serviceCollection.insertOne(newService);
+      res.send(result);
+    });
+
+    //Get latest 8 services
+    app.get("/services/latest", async (req, res) => {
+      const cursor = serviceCollection.find({}).sort({ _id: -1 }).limit(8);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    //Get all services
+    app.get("/services", async (req, res) => {
+      const cursor = serviceCollection.find({});
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    // get a single service
+    app.get("/services/:id", async (req, res) => {
+      const id = req.params.id;
+      const query = {
+        _id: new ObjectId(id),
+      };
+      const result = await serviceCollection.findOne(query);
+      res.send(result);
+    });
+
+    // get all services
 
     // await client.db("admin").command({ ping: 1 });
     // console.log(
