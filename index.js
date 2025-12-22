@@ -24,6 +24,7 @@ app.get("/", (req, res) => {
   res.send("StyleDecor Is Running..!");
 });
 
+//APIs
 async function run() {
   try {
     await client.connect();
@@ -47,7 +48,31 @@ async function run() {
 
     //Get all services
     app.get("/services", async (req, res) => {
-      const cursor = serviceCollection.find({});
+      console.log(req.query);
+
+      const { search_text, category, min_cost, max_cost } = req.query;
+      let query = {};
+      let sort = {};
+      console.log("the search text is", search_text);
+      if (search_text) {
+        query = {
+          serviceName: { $regex: search_text, $options: "i" },
+        };
+        console.log("search Query is ", query);
+      }
+      if (req.query) {
+        if (category && category != "all") query.serviceCategory = category;
+        if (min_cost || max_cost) {
+          query.cost = {};
+        }
+        if (min_cost) query.cost.$gte = Number(min_cost);
+        if (max_cost) query.cost.$lte = Number(max_cost);
+        console.log("filter Query is ", query);
+        sort = { cost: 1 };
+      }
+      console.log("final Query", query);
+      //   if()
+      const cursor = serviceCollection.find(query).sort(sort);
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -61,8 +86,6 @@ async function run() {
       const result = await serviceCollection.findOne(query);
       res.send(result);
     });
-
-    // get all services
 
     // await client.db("admin").command({ ping: 1 });
     // console.log(
