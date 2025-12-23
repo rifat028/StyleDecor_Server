@@ -22,14 +22,14 @@ app.use(express.json());
 
 const verifyFbToken = async (req, res, next) => {
   const token = req.headers.authorization;
-  console.log(token);
+  //   console.log(token);
   if (!token) {
     return res.status(401).send({ message: "Unauthorized Access..!" });
   }
   try {
     const idToken = token.split(" ")[1];
     const decoded = await admin.auth().verifyIdToken(idToken);
-    console.log("decoded in the token", decoded);
+    // console.log("decoded in the token", decoded);
     req.decoded_email = decoded.email;
     next();
   } catch (err) {
@@ -70,17 +70,8 @@ async function run() {
       res.send(result);
     });
 
-    //Get latest 8 services
-    app.get("/services/latest", async (req, res) => {
-      const cursor = serviceCollection.find({}).sort({ _id: -1 }).limit(8);
-      const result = await cursor.toArray();
-      res.send(result);
-    });
-
     //Get all services
     app.get("/services", async (req, res) => {
-      //   console.log(req.query);
-
       const { search_text, category, min_cost, max_cost } = req.query;
       let query = {};
       let sort = {};
@@ -89,7 +80,6 @@ async function run() {
         query = {
           serviceName: { $regex: search_text, $options: "i" },
         };
-        // console.log("search Query is ", query);
       }
       if (req.query) {
         if (category && category != "all") query.serviceCategory = category;
@@ -98,12 +88,16 @@ async function run() {
         }
         if (min_cost) query.cost.$gte = Number(min_cost);
         if (max_cost) query.cost.$lte = Number(max_cost);
-        // console.log("filter Query is ", query);
         sort = { cost: 1 };
       }
-      //   console.log("final Query", query);
-      //   if()
       const cursor = serviceCollection.find(query).sort(sort);
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    //Get latest 8 services
+    app.get("/services/latest", async (req, res) => {
+      const cursor = serviceCollection.find({}).sort({ _id: -1 }).limit(8);
       const result = await cursor.toArray();
       res.send(result);
     });
@@ -151,6 +145,60 @@ async function run() {
         return res.status(403).send({ message: "forbidden access...!" });
       }
       const result = await bookingCollection.insertOne(newBooking);
+      res.send(result);
+    });
+
+    // delete a booking by client
+    app.delete("/bookings/:id", verifyFbToken, async (req, res) => {
+      const id = req.params.id;
+      const booking = await bookingCollection.findOne({
+        _id: new ObjectId(id),
+      });
+      //   console.log(booking.clientEmail, req.decoded_email);
+      if (booking.clientEmail !== req.decoded_email) {
+        return res.status(403).send({ message: "Forbidden access...!" });
+      }
+      const result = await bookingCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
+      res.send(result);
+    });
+
+    //update a booking
+    app.patch("/bookings/:id", verifyFbToken, async (req, res) => {
+      const id = req.params.id;
+      const booking = await bookingCollection.findOne({
+        _id: new ObjectId(id),
+      });
+      if (booking.clientEmail !== req.decoded_email) {
+        return res.status(403).send({ message: "Forbidden access" });
+      }
+      const { contact, location, unit, bookingDate, totalCost } = req.body;
+      const updateDoc = {
+        $set: {
+          contact,
+          location,
+          unit,
+          bookingDate,
+          totalCost,
+        },
+      };
+      const result = await bookingCollection.updateOne(
+        { _id: new ObjectId(id) },
+        updateDoc
+      );
+      res.send(result);
+    });
+
+    // get my booking
+    app.get("/bookings/:email", verifyFbToken, async (req, res) => {
+      const email = req.params.email;
+      console.log(email);
+      if (email !== req.decoded_email) {
+        return res.status(403).send({ message: "forbidden access...!" });
+      }
+      const cursor = bookingCollection.find({ clientEmail: email });
+      const result = await cursor.toArray();
       res.send(result);
     });
 
