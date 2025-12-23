@@ -60,6 +60,7 @@ async function run() {
     const database = client.db("StyleDecorDB");
     const serviceCollection = database.collection("services");
     const bookingCollection = database.collection("bookings");
+    const userCollection = database.collection("users");
 
     //================================ service APIs ==================================
     //create service
@@ -114,6 +115,19 @@ async function run() {
         _id: new ObjectId(id),
       };
       const result = await serviceCollection.findOne(query);
+      res.send(result);
+    });
+
+    //================================ Users APIs ==================================
+    app.post("/users", async (req, res) => {
+      const newUser = req.body;
+      newUser.role = "client";
+      const email = newUser.email;
+      const userExists = await userCollection.findOne({ email });
+      if (userExists) {
+        return res.send({ message: "user exists" });
+      }
+      const result = await userCollection.insertOne(newUser);
       res.send(result);
     });
 
