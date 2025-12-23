@@ -169,6 +169,16 @@ async function run() {
       res.send(result);
     });
 
+    //update user role
+    app.patch("/users/role", verifyFbToken, async (req, res) => {
+      const { email, role } = req.body;
+      const result = await userCollection.updateOne(
+        { email },
+        { $set: { role } }
+      );
+      res.send(result);
+    });
+
     //================================ Booking APIs ==================================
     // Create a service booking
     app.post("/bookings", verifyFbToken, async (req, res) => {
@@ -250,6 +260,18 @@ async function run() {
       });
     });
 
+    // get selected decorators
+    app.get("/decorators", verifyFbToken, async (req, res) => {
+      const { status } = req.query; // pending | accepted
+      let query = {};
+      if (status) query.status = status;
+      const result = await decoratorCollection
+        .find(query)
+        .sort({ _id: -1 })
+        .toArray();
+      res.send(result);
+    });
+
     // get a decorator request
     app.get("/decorators/:email", verifyFbToken, async (req, res) => {
       const email = req.params.email;
@@ -257,6 +279,33 @@ async function run() {
         return res.status(403).send({ message: "forbidden access...!" });
       }
       const result = await decoratorCollection.findOne({ email });
+      res.send(result);
+    });
+
+    //update a decorator
+    app.patch("/decorators/:id", verifyFbToken, async (req, res) => {
+      const id = req.params.id;
+      const { status, taskCompleted, taskPending } = req.body;
+      const updateDoc = {
+        $set: {
+          status: status || "accepted",
+          taskCompleted: Number(taskCompleted ?? 0),
+          taskPending: Number(taskPending ?? 0),
+        },
+      };
+      const result = await decoratorCollection.updateOne(
+        { _id: new ObjectId(id) },
+        updateDoc
+      );
+      res.send(result);
+    });
+
+    // delete a decorator
+    app.delete("/decorators/:id", verifyFbToken, async (req, res) => {
+      const id = req.params.id;
+      const result = await decoratorCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
       res.send(result);
     });
 
