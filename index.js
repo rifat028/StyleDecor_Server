@@ -61,12 +61,44 @@ async function run() {
     const serviceCollection = database.collection("services");
     const bookingCollection = database.collection("bookings");
     const userCollection = database.collection("users");
+    const decoratorCollection = database.collection("decorators");
 
     //================================ service APIs ==================================
     //create service
-    app.post("/services", async (req, res) => {
+    app.post("/services", verifyFbToken, async (req, res) => {
       const newService = req.body;
       const result = await serviceCollection.insertOne(newService);
+      res.send(result);
+    });
+
+    //Update a service
+    app.patch("/services/:id", verifyFbToken, async (req, res) => {
+      const id = req.params.id;
+      const updatedService = req.body;
+      const updateDoc = {
+        $set: {
+          serviceName: updatedService.serviceName,
+          serviceCategory: updatedService.serviceCategory,
+          description: updatedService.description,
+          cost: updatedService.cost,
+          unit: updatedService.unit,
+          rating: updatedService.rating,
+          totalReviews: updatedService.totalReviews,
+        },
+      };
+      const result = await serviceCollection.updateOne(
+        { _id: new ObjectId(id) },
+        updateDoc
+      );
+      res.send(result);
+    });
+
+    // delete a service
+    app.delete("/services/:id", verifyFbToken, async (req, res) => {
+      const id = req.params.id;
+      const result = await serviceCollection.deleteOne({
+        _id: new ObjectId(id),
+      });
       res.send(result);
     });
 
@@ -74,7 +106,7 @@ async function run() {
     app.get("/services", async (req, res) => {
       const { search_text, category, min_cost, max_cost } = req.query;
       let query = {};
-      let sort = {};
+      let sort = { _id: -1 };
       console.log("the search text is", search_text);
       if (search_text) {
         query = {
@@ -85,10 +117,10 @@ async function run() {
         if (category && category != "all") query.serviceCategory = category;
         if (min_cost || max_cost) {
           query.cost = {};
+          sort = { cost: 1 };
         }
         if (min_cost) query.cost.$gte = Number(min_cost);
         if (max_cost) query.cost.$lte = Number(max_cost);
-        sort = { cost: 1 };
       }
       const cursor = serviceCollection.find(query).sort(sort);
       const result = await cursor.toArray();
@@ -113,6 +145,7 @@ async function run() {
     });
 
     //================================ Users APIs ==================================
+    //create a user
     app.post("/users", async (req, res) => {
       const newUser = req.body;
       newUser.role = "client";
@@ -199,6 +232,31 @@ async function run() {
       }
       const cursor = bookingCollection.find({ clientEmail: email });
       const result = await cursor.toArray();
+      res.send(result);
+    });
+
+    //================= decorators APIs ======================
+    // add a decorator request
+    app.post("/decorators", verifyFbToken, async (req, res) => {
+      const decoratorData = req.body;
+      if (decoratorData.email !== req.decoded_email) {
+        return res.status(403).send({ message: "Forbidden access" });
+      }
+      decoratorData.createdAt = new Date().toISOString().split("T")[0];
+      const result = await decoratorCollection.insertOne(decoratorData);
+      res.send({
+        acknowledged: true,
+        insertedId: result.insertedId,
+      });
+    });
+
+    // get a decorator request
+    app.get("/decorators/:email", verifyFbToken, async (req, res) => {
+      const email = req.params.email;
+      if (email !== req.decoded_email) {
+        return res.status(403).send({ message: "forbidden access...!" });
+      }
+      const result = await decoratorCollection.findOne({ email });
       res.send(result);
     });
 
