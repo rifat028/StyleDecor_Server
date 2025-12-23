@@ -131,6 +131,17 @@ async function run() {
       res.send(result);
     });
 
+    // get a single user
+    app.get("/users/:email", verifyFbToken, async (req, res) => {
+      const email = req.params.email;
+      //   console.log(email);
+      if (email !== req.decoded_email) {
+        return res.status(403).send({ message: "forbidden access...!" });
+      }
+      const result = await userCollection.findOne({ email });
+      res.send(result);
+    });
+
     //================================ Booking APIs ==================================
     // Create a service booking
     app.post("/bookings", verifyFbToken, async (req, res) => {
