@@ -63,16 +63,39 @@ async function run() {
     const userCollection = database.collection("users");
     const decoratorCollection = database.collection("decorators");
 
+    // middle admin before allowing admin activity
+    // must be used after verifyFBToken middleware
+    const verifyAdmin = async (req, res, next) => {
+      const email = req.decoded_email;
+      const query = { email };
+      const user = await userCollection.findOne(query);
+
+      if (!user || user.role !== "admin") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
+    const verifyDecorator = async (req, res, next) => {
+      const email = req.decoded_email;
+      const query = { email };
+      const user = await userCollection.findOne(query);
+
+      if (!user || user.role !== "decorator") {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+      next();
+    };
+
     //================================ service APIs ==================================
     //create service
-    app.post("/services", verifyFbToken, async (req, res) => {
+    app.post("/services", verifyFbToken, verifyAdmin, async (req, res) => {
       const newService = req.body;
       const result = await serviceCollection.insertOne(newService);
       res.send(result);
     });
 
     //Update a service
-    app.patch("/services/:id", verifyFbToken, async (req, res) => {
+    app.patch("/services/:id", verifyFbToken, verifyAdmin, async (req, res) => {
       const id = req.params.id;
       const updatedService = req.body;
       const updateDoc = {
@@ -94,13 +117,18 @@ async function run() {
     });
 
     // delete a service
-    app.delete("/services/:id", verifyFbToken, async (req, res) => {
-      const id = req.params.id;
-      const result = await serviceCollection.deleteOne({
-        _id: new ObjectId(id),
-      });
-      res.send(result);
-    });
+    app.delete(
+      "/services/:id",
+      verifyFbToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const result = await serviceCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      }
+    );
 
     //Get all services
     app.get("/services", async (req, res) => {
@@ -170,7 +198,7 @@ async function run() {
     });
 
     //update user role
-    app.patch("/users/role", verifyFbToken, async (req, res) => {
+    app.patch("/users/role", verifyFbToken, verifyAdmin, async (req, res) => {
       const { email, role } = req.body;
       const result = await userCollection.updateOne(
         { email },
@@ -192,7 +220,7 @@ async function run() {
     });
 
     // get all bookings with filter and pagination
-    app.get("/bookings", verifyFbToken, async (req, res) => {
+    app.get("/bookings", verifyFbToken, verifyAdmin, async (req, res) => {
       const {
         assigned,
         paid,
@@ -233,6 +261,7 @@ async function run() {
     app.get(
       "/bookings/decorator/:decoratorId",
       verifyFbToken,
+      verifyDecorator,
       async (req, res) => {
         const decoratorId = req.params.decoratorId;
 
@@ -274,67 +303,72 @@ async function run() {
     });
 
     //  update booking --- Assign decorator to booking and update decorators stats
-    app.patch("/bookings/:id/status", verifyFbToken, async (req, res) => {
-      const bookingId = req.params.id;
-      const { status } = req.body;
+    app.patch(
+      "/bookings/:id/status",
+      verifyFbToken,
+      verifyAdmin,
+      async (req, res) => {
+        const bookingId = req.params.id;
+        const { status } = req.body;
 
-      const allowedStatuses = [
-        "Assigned",
-        "Planning",
-        "Equipping",
-        "On Way",
-        "Setting up",
-        "Completed",
-      ];
+        const allowedStatuses = [
+          "Assigned",
+          "Planning",
+          "Equipping",
+          "On Way",
+          "Setting up",
+          "Completed",
+        ];
 
-      if (!allowedStatuses.includes(status)) {
-        return res.status(400).send({ message: "Invalid status" });
-      }
+        if (!allowedStatuses.includes(status)) {
+          return res.status(400).send({ message: "Invalid status" });
+        }
 
-      // 1️⃣ Find booking first
-      const booking = await bookingCollection.findOne({
-        _id: new ObjectId(bookingId),
-      });
+        // 1️⃣ Find booking first
+        const booking = await bookingCollection.findOne({
+          _id: new ObjectId(bookingId),
+        });
 
-      if (!booking) {
-        return res.status(404).send({ message: "Booking not found" });
-      }
+        if (!booking) {
+          return res.status(404).send({ message: "Booking not found" });
+        }
 
-      // 2️⃣ Update booking status
-      const updateDoc = {
-        $set: {
-          status,
-          statusUpdatedAt: new Date().toISOString().split("T")[0],
-        },
-      };
+        // 2️⃣ Update booking status
+        const updateDoc = {
+          $set: {
+            status,
+            statusUpdatedAt: new Date().toISOString().split("T")[0],
+          },
+        };
 
-      if (status === "Completed") {
-        updateDoc.$set.completedAt = new Date().toISOString().split("T")[0];
-      }
+        if (status === "Completed") {
+          updateDoc.$set.completedAt = new Date().toISOString().split("T")[0];
+        }
 
-      await bookingCollection.updateOne(
-        { _id: new ObjectId(bookingId) },
-        updateDoc
-      );
-
-      // 3️⃣ Update decorator task counters ONLY when completed
-      if (status === "Completed" && booking.assignTo) {
-        await decoratorCollection.updateOne(
-          { _id: new ObjectId(booking.assignTo) },
-          {
-            $inc: {
-              taskCompleted: 1,
-              taskPending: -1,
-            },
-          }
+        await bookingCollection.updateOne(
+          { _id: new ObjectId(bookingId) },
+          updateDoc
         );
-      }
 
-      res.send({
-        success: true,
-        message: "Booking status updated successfully",
-      });
-    });
+        // 3️⃣ Update decorator task counters ONLY when completed
+        if (status === "Completed" && booking.assignTo) {
+          await decoratorCollection.updateOne(
+            { _id: new ObjectId(booking.assignTo) },
+            {
+              $inc: {
+                taskCompleted: 1,
+                taskPending: -1,
+              },
+            }
+          );
+        }
+
+        res.send({
+          success: true,
+          message: "Booking status updated successfully",
+        });
+      }
+    );
 
     //update a booking info
     app.patch("/bookings/:id", verifyFbToken, async (req, res) => {
@@ -378,7 +412,7 @@ async function run() {
     });
 
     // get selected decorators
-    app.get("/decorators", verifyFbToken, async (req, res) => {
+    app.get("/decorators", verifyFbToken, verifyAdmin, async (req, res) => {
       const { status, location } = req.query; // pending | accepted
       let query = {};
       if (status) query.status = status;
@@ -391,53 +425,73 @@ async function run() {
     });
 
     // get a decorator request
-    app.get("/decorators/:email", verifyFbToken, async (req, res) => {
-      const email = req.params.email;
-      if (email !== req.decoded_email) {
-        return res.status(403).send({ message: "forbidden access...!" });
+    app.get(
+      "/decorators/:email",
+      verifyFbToken,
+      verifyDecorator,
+      async (req, res) => {
+        const email = req.params.email;
+        if (email !== req.decoded_email) {
+          return res.status(403).send({ message: "forbidden access...!" });
+        }
+        const result = await decoratorCollection.findOne({ email });
+        res.send(result);
       }
-      const result = await decoratorCollection.findOne({ email });
-      res.send(result);
-    });
+    );
 
-    //update a decorator task status
-    app.patch("/decorators/:id/task", verifyFbToken, async (req, res) => {
-      const id = req.params.id;
-      const { incPendingBy = 1 } = req.body;
-      const incValue = Number(incPendingBy);
-      const result = await decoratorCollection.updateOne(
-        { _id: new ObjectId(id) },
-        { $inc: { taskPending: incValue } }
-      );
-      res.send(result);
-    });
+    //update a decorator task count
+    app.patch(
+      "/decorators/:id/task",
+      verifyFbToken,
+      verifyDecorator,
+      async (req, res) => {
+        const id = req.params.id;
+        const { incPendingBy = 1 } = req.body;
+        const incValue = Number(incPendingBy);
+        const result = await decoratorCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $inc: { taskPending: incValue } }
+        );
+        res.send(result);
+      }
+    );
 
     //update a decorator acceptance status
-    app.patch("/decorators/:id", verifyFbToken, async (req, res) => {
-      const id = req.params.id;
-      const { status, taskCompleted, taskPending } = req.body;
-      const updateDoc = {
-        $set: {
-          status: status || "accepted",
-          taskCompleted: Number(taskCompleted ?? 0),
-          taskPending: Number(taskPending ?? 0),
-        },
-      };
-      const result = await decoratorCollection.updateOne(
-        { _id: new ObjectId(id) },
-        updateDoc
-      );
-      res.send(result);
-    });
+    app.patch(
+      "/decorators/:id",
+      verifyFbToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const { status, taskCompleted, taskPending } = req.body;
+        const updateDoc = {
+          $set: {
+            status: status || "accepted",
+            taskCompleted: Number(taskCompleted ?? 0),
+            taskPending: Number(taskPending ?? 0),
+          },
+        };
+        const result = await decoratorCollection.updateOne(
+          { _id: new ObjectId(id) },
+          updateDoc
+        );
+        res.send(result);
+      }
+    );
 
     // delete a decorator
-    app.delete("/decorators/:id", verifyFbToken, async (req, res) => {
-      const id = req.params.id;
-      const result = await decoratorCollection.deleteOne({
-        _id: new ObjectId(id),
-      });
-      res.send(result);
-    });
+    app.delete(
+      "/decorators/:id",
+      verifyFbToken,
+      verifyAdmin,
+      async (req, res) => {
+        const id = req.params.id;
+        const result = await decoratorCollection.deleteOne({
+          _id: new ObjectId(id),
+        });
+        res.send(result);
+      }
+    );
 
     // await client.db("admin").command({ ping: 1 });
     // console.log(
