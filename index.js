@@ -191,6 +191,44 @@ async function run() {
       res.send(result);
     });
 
+    // get all bookings with filter and pagination
+    app.get("/bookings", verifyFbToken, async (req, res) => {
+      const {
+        assigned,
+        paid,
+        page = 1,
+        limit = 5,
+        sortDate = "desc",
+      } = req.query;
+
+      const query = {};
+      // assigned filter (required in UI)
+      if (assigned === "true") query.assigned = true;
+      if (assigned === "false") query.assigned = false;
+      // paid filter (optional)
+      if (paid === "true") query.paid = true;
+      if (paid === "false") query.paid = false;
+
+      // pagination
+      const pageNum = Math.max(1, Number(page));
+      const limitNum = Math.max(1, Number(limit));
+      const skipNum = (pageNum - 1) * limitNum;
+
+      // sort by bookingDate (string like "2025-12-30" sorts fine)
+      const sortOrder = sortDate === "asc" ? 1 : -1;
+
+      const totalCount = await bookingCollection.countDocuments(query);
+
+      const data = await bookingCollection
+        .find(query)
+        .sort({ bookingDate: sortOrder }) // ✅ bookingDate sort
+        .skip(skipNum)
+        .limit(limitNum)
+        .toArray();
+
+      res.send({ data, totalCount });
+    });
+
     // delete a booking by client
     app.delete("/bookings/:id", verifyFbToken, async (req, res) => {
       const id = req.params.id;
@@ -207,7 +245,32 @@ async function run() {
       res.send(result);
     });
 
-    //update a booking
+    //  update booking --- Assign decorator to booking
+    app.patch("/bookings/:id/assign", verifyFbToken, async (req, res) => {
+      const id = req.params.id;
+      const { assignTo, status = "Assigned", assigned = true } = req.body;
+
+      if (!assignTo) {
+        return res.status(400).send({ message: "assignTo is required" });
+      }
+
+      const updateDoc = {
+        $set: {
+          assignTo,
+          status,
+          assigned: Boolean(assigned),
+        },
+      };
+
+      const result = await bookingCollection.updateOne(
+        { _id: new ObjectId(id) },
+        updateDoc
+      );
+
+      res.send(result);
+    });
+
+    //update a booking info
     app.patch("/bookings/:id", verifyFbToken, async (req, res) => {
       const id = req.params.id;
       const booking = await bookingCollection.findOne({
@@ -262,9 +325,10 @@ async function run() {
 
     // get selected decorators
     app.get("/decorators", verifyFbToken, async (req, res) => {
-      const { status } = req.query; // pending | accepted
+      const { status, location } = req.query; // pending | accepted
       let query = {};
       if (status) query.status = status;
+      if (location) query.location = location;
       const result = await decoratorCollection
         .find(query)
         .sort({ _id: -1 })
@@ -282,7 +346,31 @@ async function run() {
       res.send(result);
     });
 
-    //update a decorator
+    //update a decorator task status
+    app.patch("/decorators/:id/task", verifyFbToken, async (req, res) => {
+      try {
+        const id = req.params.id;
+
+        if (!ObjectId.isValid(id)) {
+          return res.status(400).send({ message: "Invalid decorator id" });
+        }
+
+        const { incPendingBy = 1 } = req.body;
+        const incValue = Number(incPendingBy);
+
+        const result = await decoratorCollection.updateOne(
+          { _id: new ObjectId(id) },
+          { $inc: { taskPending: incValue } }
+        );
+
+        res.send(result);
+      } catch (error) {
+        console.error("PATCH /decorators/:id/task error:", error);
+        res.status(500).send({ message: "Failed to update decorator task" });
+      }
+    });
+
+    //update a decorator acceptance status
     app.patch("/decorators/:id", verifyFbToken, async (req, res) => {
       const id = req.params.id;
       const { status, taskCompleted, taskPending } = req.body;
