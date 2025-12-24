@@ -229,6 +229,34 @@ async function run() {
       res.send({ data, totalCount });
     });
 
+    // GET bookings assigned to a decorator
+    app.get(
+      "/bookings/decorator/:decoratorId",
+      verifyFbToken,
+      async (req, res) => {
+        const decoratorId = req.params.decoratorId;
+
+        const bookings = await bookingCollection
+          .find({ assignTo: decoratorId })
+          .sort({ bookingDate: 1 }) // optional: sort by date
+          .toArray();
+
+        res.send(bookings);
+      }
+    );
+
+    // get my booking
+    app.get("/bookings/:email", verifyFbToken, async (req, res) => {
+      const email = req.params.email;
+      console.log(email);
+      if (email !== req.decoded_email) {
+        return res.status(403).send({ message: "forbidden access...!" });
+      }
+      const cursor = bookingCollection.find({ clientEmail: email });
+      const result = await cursor.toArray();
+      res.send(result);
+    });
+
     // delete a booking by client
     app.delete("/bookings/:id", verifyFbToken, async (req, res) => {
       const id = req.params.id;
@@ -245,29 +273,67 @@ async function run() {
       res.send(result);
     });
 
-    //  update booking --- Assign decorator to booking
-    app.patch("/bookings/:id/assign", verifyFbToken, async (req, res) => {
-      const id = req.params.id;
-      const { assignTo, status = "Assigned", assigned = true } = req.body;
+    //  update booking --- Assign decorator to booking and update decorators stats
+    app.patch("/bookings/:id/status", verifyFbToken, async (req, res) => {
+      const bookingId = req.params.id;
+      const { status } = req.body;
 
-      if (!assignTo) {
-        return res.status(400).send({ message: "assignTo is required" });
+      const allowedStatuses = [
+        "Assigned",
+        "Planning",
+        "Equipping",
+        "On Way",
+        "Setting up",
+        "Completed",
+      ];
+
+      if (!allowedStatuses.includes(status)) {
+        return res.status(400).send({ message: "Invalid status" });
       }
 
+      // 1️⃣ Find booking first
+      const booking = await bookingCollection.findOne({
+        _id: new ObjectId(bookingId),
+      });
+
+      if (!booking) {
+        return res.status(404).send({ message: "Booking not found" });
+      }
+
+      // 2️⃣ Update booking status
       const updateDoc = {
         $set: {
-          assignTo,
           status,
-          assigned: Boolean(assigned),
+          statusUpdatedAt: new Date().toISOString().split("T")[0],
         },
       };
 
-      const result = await bookingCollection.updateOne(
-        { _id: new ObjectId(id) },
+      if (status === "Completed") {
+        updateDoc.$set.completedAt = new Date().toISOString().split("T")[0];
+      }
+
+      await bookingCollection.updateOne(
+        { _id: new ObjectId(bookingId) },
         updateDoc
       );
 
-      res.send(result);
+      // 3️⃣ Update decorator task counters ONLY when completed
+      if (status === "Completed" && booking.assignTo) {
+        await decoratorCollection.updateOne(
+          { _id: new ObjectId(booking.assignTo) },
+          {
+            $inc: {
+              taskCompleted: 1,
+              taskPending: -1,
+            },
+          }
+        );
+      }
+
+      res.send({
+        success: true,
+        message: "Booking status updated successfully",
+      });
     });
 
     //update a booking info
@@ -293,18 +359,6 @@ async function run() {
         { _id: new ObjectId(id) },
         updateDoc
       );
-      res.send(result);
-    });
-
-    // get my booking
-    app.get("/bookings/:email", verifyFbToken, async (req, res) => {
-      const email = req.params.email;
-      console.log(email);
-      if (email !== req.decoded_email) {
-        return res.status(403).send({ message: "forbidden access...!" });
-      }
-      const cursor = bookingCollection.find({ clientEmail: email });
-      const result = await cursor.toArray();
       res.send(result);
     });
 
@@ -348,26 +402,14 @@ async function run() {
 
     //update a decorator task status
     app.patch("/decorators/:id/task", verifyFbToken, async (req, res) => {
-      try {
-        const id = req.params.id;
-
-        if (!ObjectId.isValid(id)) {
-          return res.status(400).send({ message: "Invalid decorator id" });
-        }
-
-        const { incPendingBy = 1 } = req.body;
-        const incValue = Number(incPendingBy);
-
-        const result = await decoratorCollection.updateOne(
-          { _id: new ObjectId(id) },
-          { $inc: { taskPending: incValue } }
-        );
-
-        res.send(result);
-      } catch (error) {
-        console.error("PATCH /decorators/:id/task error:", error);
-        res.status(500).send({ message: "Failed to update decorator task" });
-      }
+      const id = req.params.id;
+      const { incPendingBy = 1 } = req.body;
+      const incValue = Number(incPendingBy);
+      const result = await decoratorCollection.updateOne(
+        { _id: new ObjectId(id) },
+        { $inc: { taskPending: incValue } }
+      );
+      res.send(result);
     });
 
     //update a decorator acceptance status
