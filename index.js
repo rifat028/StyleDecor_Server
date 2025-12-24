@@ -424,6 +424,24 @@ async function run() {
       res.send(result);
     });
 
+    // Top rated decorators (OPEN for home page)
+    app.get("/decorator/toprated", async (req, res) => {
+      const decorators = await decoratorCollection
+        .find({ status: "accepted" })
+        .sort({ rating: -1, taskCompleted: -1, experience: -1 })
+        .limit(6)
+        .project({
+          name: 1,
+          photoUrl: 1,
+          experience: 1,
+          rating: 1,
+          taskCompleted: 1,
+        })
+        .toArray();
+
+      res.send(decorators);
+    });
+
     // get a decorator request
     app.get(
       "/decorators/:email",
