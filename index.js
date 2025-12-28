@@ -544,7 +544,7 @@ async function run() {
     );
 
     //===================== payment api ==============
-    app.post("/create-checkout-session", async (req, res) => {
+    app.post("/create-checkout-session", verifyFbToken, async (req, res) => {
       const paymentInfo = req.body;
       const unitAmount = Number(paymentInfo.unitCost) * 100;
       const session = await stripe.checkout.sessions.create({
@@ -570,7 +570,7 @@ async function run() {
       res.send({ url: session.url });
     });
 
-    app.patch("/payment-success", async (req, res) => {
+    app.patch("/payment-success", verifyFbToken, async (req, res) => {
       const session_id = req.query.session_id;
       const session = await stripe.checkout.sessions.retrieve(session_id);
       const paymentInfo = {
@@ -582,7 +582,7 @@ async function run() {
         amount: session.amount_total / 100,
         paidAT: new Date().toISOString().split("T")[0],
       };
-      console.log(paymentInfo);
+      //   console.log(paymentInfo);
 
       if (session.payment_status === "paid") {
         //update payment status on booking data
@@ -599,7 +599,13 @@ async function run() {
           updateBooking
         );
         //   insert data in payment collection
-        const paymentResult = await paymentsCollection.insertOne(paymentInfo);
+        const paymentExist = await paymentsCollection.findOne({
+          transactionId: session.payment_intent,
+        });
+        let paymentResult = {};
+        if (!paymentExist) {
+          paymentResult = await paymentsCollection.insertOne(paymentInfo);
+        }
         return res.send({
           success: true,
           bookingResult,
@@ -608,6 +614,27 @@ async function run() {
         });
       }
       return res.send({ success: false });
+    });
+
+    //========================Transactions Related API ===========================
+    app.get("/transactions", verifyFbToken, async (req, res) => {
+      const email = req.query.email;
+
+      if (!email) {
+        return res.status(400).send({ message: "email query is required" });
+      }
+
+      // ✅ Only allow user to see own transactions
+      if (email !== req.decoded_email) {
+        return res.status(403).send({ message: "forbidden access" });
+      }
+
+      const result = await paymentsCollection
+        .find({ clientEmail: email })
+        .sort({ _id: -1 })
+        .toArray();
+
+      res.send(result);
     });
 
     // await client.db("admin").command({ ping: 1 });
