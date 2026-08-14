@@ -13,7 +13,7 @@ const getAgentsByDecorator = async (req, res) => {
     const agents = await agentCollection
       .find({
         decoratorId: new ObjectId(decoratorId),
-        status: "active",
+        status: { $in: ["available", "assigned", "active"] },
       })
       .sort({ experienceYears: -1, _id: 1 })
       .toArray();
