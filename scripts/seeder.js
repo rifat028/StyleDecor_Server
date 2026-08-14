@@ -1,7 +1,9 @@
 const dotenv = require("dotenv");
 const { client } = require("../config/db");
-const { categoryCollection } = require("../models/collections");
+const { categoryCollection, userCollection, decoratorCollection } = require("../models/collections");
 const { categoriesData } = require("../data/categoriesData");
+const { usersData } = require("../data/usersData");
+const { decoratorsData } = require("../data/decoratorsData");
 
 // Load env vars
 dotenv.config();
@@ -12,10 +14,14 @@ const importData = async () => {
     console.log("✅ Connected to MongoDB Atlas for Seeding");
 
     await categoryCollection.deleteMany();
-    console.log("🗑️  Existing categories destroyed");
+    await userCollection.deleteMany();
+    await decoratorCollection.deleteMany();
+    console.log("🗑️  Existing categories, users, and decorators destroyed");
 
     await categoryCollection.insertMany(categoriesData);
-    console.log("📥 Categories imported successfully!");
+    await userCollection.insertMany(usersData);
+    await decoratorCollection.insertMany(decoratorsData);
+    console.log("📥 Categories, Users, and Decorators imported successfully!");
 
     await client.close();
     process.exit(0);
@@ -32,7 +38,9 @@ const destroyData = async () => {
     console.log("✅ Connected to MongoDB Atlas for Seeding");
 
     await categoryCollection.deleteMany();
-    console.log("🗑️  All categories destroyed successfully!");
+    await userCollection.deleteMany();
+    await decoratorCollection.deleteMany();
+    console.log("🗑️  All categories, users, and decorators destroyed successfully!");
 
     await client.close();
     process.exit(0);

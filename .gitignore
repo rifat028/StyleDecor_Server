@@ -3,3 +3,4 @@ node_modules
 styledecor-firebase-adminsdk.json
 .vercel
 AI_Doc/
+.vscode
