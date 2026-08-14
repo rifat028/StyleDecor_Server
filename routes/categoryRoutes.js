@@ -4,18 +4,32 @@ const router = express.Router();
 const { verifyFbToken, verifyAdmin } = require("../middleware/authMiddleware");
 const categoryController = require("../controllers/categoryController");
 
-// ========== Category Endpoints ==========
+// ========== Public Category Endpoints ==========
 
-// Create a new category (Admin only)
+// Get all categories with search & status filters
+router.get("/", categoryController.getAllCategories);
+
+// Get single category by ID
+router.get("/:id", categoryController.getCategoryById);
+
+// ========== Admin Protected Endpoints ==========
+
+// Create a new main category
 router.post("/", verifyFbToken, verifyAdmin, categoryController.createCategory);
 
-// Update an existing category (Admin only)
+// Update a category by ID
 router.patch("/:id", verifyFbToken, verifyAdmin, categoryController.updateCategory);
 
-// Delete a category (Admin only)
-router.delete("/:id", verifyFbToken, verifyAdmin, categoryController.deleteCategory);
+// Add a subcategory to a category
+router.post("/:id/subcategories", verifyFbToken, verifyAdmin, categoryController.addSubCategory);
 
-// Get all categories (Public)
-router.get("/", categoryController.getAllCategories);
+// Update a subcategory in a category (e.g. toggle status, rename)
+router.patch("/:id/subcategories/:subId", verifyFbToken, verifyAdmin, categoryController.updateSubCategory);
+
+// Delete a subcategory from a category
+router.delete("/:id/subcategories/:subId", verifyFbToken, verifyAdmin, categoryController.deleteSubCategory);
+
+// Delete a full category
+router.delete("/:id", verifyFbToken, verifyAdmin, categoryController.deleteCategory);
 
 module.exports = router;

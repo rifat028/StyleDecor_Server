@@ -108,7 +108,7 @@ const getAllUsers = async (req, res) => {
     const totalCount = await userCollection.countDocuments(query);
     const users = await userCollection
       .find(query)
-      .sort({ createdAt: sortOrder })
+      .sort({ createdAt: sortOrder, _id: 1 })
       .skip(skip)
       .limit(limitNum)
       .toArray();
@@ -117,7 +117,8 @@ const getAllUsers = async (req, res) => {
       users,
       totalCount,
       page: pageNum,
-      totalPages: Math.ceil(totalCount / limitNum)
+      limit: limitNum,
+      totalPages: Math.max(1, Math.ceil(totalCount / limitNum))
     });
   } catch (error) {
     res.status(500).send({ message: "Error fetching users", error: error.message });
