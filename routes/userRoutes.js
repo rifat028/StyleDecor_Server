@@ -19,12 +19,18 @@ router.get("/stats", verifyFbToken, verifyAdmin, userController.getUserStats);
 router.get("/", verifyFbToken, verifyAdmin, userController.getAllUsers);
 
 // Get a single user by ID
-router.get("/:id", userController.getUserById);
+router.get("/id/:id", userController.getUserById);
 
 // Update current user profile
 router.patch("/profile", verifyFbToken, userController.updateUserProfile);
 
 // Update user role (Admin only)
 router.patch("/role", verifyFbToken, verifyAdmin, userController.updateUserRole);
+
+// Update user details by ID (Admin only)
+router.patch("/admin/:id", verifyFbToken, verifyAdmin, userController.updateUserById);
+
+// Delete user by ID (Admin only)
+router.delete("/:id", verifyFbToken, verifyAdmin, userController.deleteUser);
 
 module.exports = router;

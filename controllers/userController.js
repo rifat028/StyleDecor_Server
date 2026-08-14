@@ -142,7 +142,7 @@ const getUserById = async (req, res) => {
   }
 };
 
-// ========== Update User Profile ==========
+// ========== Update Current User Profile ==========
 // Updates user's personal details, phone, and address
 const updateUserProfile = async (req, res) => {
   try {
@@ -174,6 +174,49 @@ const updateUserProfile = async (req, res) => {
   }
 };
 
+// ========== Update User By ID (Admin Only) ==========
+// Allows administrators to modify any user's data & role
+const updateUserById = async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid user ID" });
+    }
+
+    const { name, phone, photoUrl, role, address } = req.body;
+    const updateDoc = {
+      $set: {
+        updatedAt: new Date()
+      }
+    };
+
+    if (name) updateDoc.$set.name = name;
+    if (phone !== undefined) updateDoc.$set.phone = phone;
+    if (photoUrl) updateDoc.$set.photoUrl = photoUrl;
+    if (role) {
+      const allowedRoles = ["admin", "decorator", "agent", "customer"];
+      if (!allowedRoles.includes(role)) {
+        return res.status(400).send({ message: `Invalid role. Allowed: ${allowedRoles.join(", ")}` });
+      }
+      updateDoc.$set.role = role;
+    }
+    if (address) {
+      updateDoc.$set.address = {
+        street: address.street || "",
+        area: address.area || "",
+        city: address.city || "Dhaka",
+        postalCode: address.postalCode || ""
+      };
+    }
+
+    const result = await userCollection.updateOne({ _id: new ObjectId(id) }, updateDoc);
+    const updatedUser = await userCollection.findOne({ _id: new ObjectId(id) });
+    res.send({ message: "User updated successfully", result, user: updatedUser });
+  } catch (error) {
+    res.status(500).send({ message: "Error updating user", error: error.message });
+  }
+};
+
 // ========== Update User Role (Admin Only) ==========
 // Allows administrators to modify user roles
 const updateUserRole = async (req, res) => {
@@ -192,6 +235,31 @@ const updateUserRole = async (req, res) => {
     res.send({ message: `Role updated to ${role}`, result });
   } catch (error) {
     res.status(500).send({ message: "Error updating user role", error: error.message });
+  }
+};
+
+// ========== Delete User (Admin Only) ==========
+// Removes a user from the system
+const deleteUser = async (req, res) => {
+  try {
+    const id = req.params.id;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ message: "Invalid user ID" });
+    }
+
+    // Check if target is super admin
+    const targetUser = await userCollection.findOne({ _id: new ObjectId(id) });
+    if (!targetUser) {
+      return res.status(404).send({ message: "User not found" });
+    }
+    if (targetUser.email === "admin.styledecor1@gmail.com") {
+      return res.status(403).send({ message: "Super Admin cannot be deleted" });
+    }
+
+    const result = await userCollection.deleteOne({ _id: new ObjectId(id) });
+    res.send({ message: "User deleted successfully", result });
+  } catch (error) {
+    res.status(500).send({ message: "Error deleting user", error: error.message });
   }
 };
 
@@ -225,6 +293,8 @@ module.exports = {
   getAllUsers,
   getUserById,
   updateUserProfile,
+  updateUserById,
   updateUserRole,
+  deleteUser,
   getUserStats,
 };
