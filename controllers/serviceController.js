@@ -1,152 +1,161 @@
 // ========== Imports ==========
 const { ObjectId } = require("mongodb");
-const { serviceCollection, decoratorCollection } = require("../models/collections");
+const {
+  serviceCollection,
+  decoratorCollection,
+  userCollection,
+} = require("../models/collections");
 
-// ========== Create Service ==========
-// Inserts a new service into the database
-const createService = async (req, res) => {
-  try {
-    const newService = {
-      ...req.body,
-      createdAt: new Date(),
-      updatedAt: new Date(),
-    };
-
-    if (newService.decoratorId && typeof newService.decoratorId === "string") {
-      newService.decoratorId = new ObjectId(newService.decoratorId);
-    }
-
-    const result = await serviceCollection.insertOne(newService);
-    res.send({ success: true, message: "Service created successfully", insertedId: result.insertedId });
-  } catch (error) {
-    res.status(500).send({ success: false, message: "Error creating service", error: error.message });
-  }
+// Helper to generate SEO friendly slugs
+const generateSlug = (text) => {
+  return text
+    .toString()
+    .toLowerCase()
+    .trim()
+    .replace(/\s+/g, "-")
+    .replace(/[^\w-]+/g, "")
+    .replace(/--+/g, "-");
 };
 
-// ========== Update Service ==========
-// Updates an existing service by its ID
-const updateService = async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).send({ success: false, message: "Invalid service ID" });
-    }
-
-    const updatedData = {
-      ...req.body,
-      updatedAt: new Date(),
-    };
-    delete updatedData._id;
-
-    if (updatedData.decoratorId && typeof updatedData.decoratorId === "string") {
-      updatedData.decoratorId = new ObjectId(updatedData.decoratorId);
-    }
-
-    const result = await serviceCollection.updateOne(
-      { _id: new ObjectId(id) },
-      { $set: updatedData }
-    );
-
-    res.send({ success: true, message: "Service updated successfully", result });
-  } catch (error) {
-    res.status(500).send({ success: false, message: "Error updating service", error: error.message });
-  }
-};
-
-// ========== Delete Service ==========
-// Deletes a service by its ID
-const deleteService = async (req, res) => {
-  try {
-    const { id } = req.params;
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).send({ success: false, message: "Invalid service ID" });
-    }
-
-    const result = await serviceCollection.deleteOne({
-      _id: new ObjectId(id),
-    });
-
-    res.send({ success: true, message: "Service deleted successfully", result });
-  } catch (error) {
-    res.status(500).send({ success: false, message: "Error deleting service", error: error.message });
-  }
-};
-
-// ========== Get All Services ==========
-// Retrieves all services, supporting query filters like search text, category, decoratorId, status, and price range
+// ========== Get All Services (Public & Filtered) ==========
+// Supports search, category, subcategory, decoratorId, city, price range, sorting & pagination
 const getServices = async (req, res) => {
   try {
     const {
-      search_text,
       search,
+      search_text,
       category,
       subCategory,
       decoratorId,
-      status = "active",
+      city,
+      minPrice,
+      maxPrice,
       min_cost,
       max_cost,
+      featured,
+      status = "active",
       sort = "newest",
       page = 1,
       limit = 12,
     } = req.query;
 
-    let query = {};
+    const query = {};
 
-    // Status filter
+    // 1. Status Filter
     if (status && status !== "all") {
       query.status = status;
     }
 
-    // Decorator ID filter
+    // 2. Decorator Filter
     if (decoratorId) {
       if (ObjectId.isValid(decoratorId)) {
         query.decoratorId = new ObjectId(decoratorId);
       }
     }
 
-    // Keyword Search (supports title, serviceName, shortDescription)
-    const keyword = search_text || search;
+    // 3. Featured Filter
+    if (featured === "true") {
+      query.featured = true;
+    }
+
+    // 4. Keyword Search
+    const keyword = search || search_text;
     if (keyword && keyword.trim() !== "") {
       const searchRegex = { $regex: keyword.trim(), $options: "i" };
       query.$or = [
         { title: searchRegex },
         { serviceName: searchRegex },
         { shortDescription: searchRegex },
+        { fullDescription: searchRegex },
+        { category: searchRegex },
         { "category.name": searchRegex },
-        { serviceCategory: searchRegex },
+        { "subCategory.name": searchRegex },
       ];
     }
 
-    // Category filter
+    // 5. Category Filter
     if (category && category !== "all") {
       query.$or = [
-        { "category.name": category },
-        { "category.slug": category },
-        { serviceCategory: category },
+        { category: { $regex: category.trim(), $options: "i" } },
+        { "category.name": { $regex: category.trim(), $options: "i" } },
+        { "category.slug": { $regex: category.trim(), $options: "i" } },
+        { serviceCategory: { $regex: category.trim(), $options: "i" } },
       ];
     }
 
-    // SubCategory filter
+    // 6. SubCategory Filter
     if (subCategory && subCategory !== "all") {
-      query["subCategory.name"] = subCategory;
-    }
-
-    // Price / Cost range (supports pricing.basePrice or cost)
-    if (min_cost || max_cost) {
-      const min = Number(min_cost) || 0;
-      const max = Number(max_cost) || Infinity;
       query.$or = [
-        { "pricing.basePrice": { $gte: min, ...(max !== Infinity && { $lte: max }) } },
-        { cost: { $gte: min, ...(max !== Infinity && { $lte: max }) } },
+        { "subCategory.name": { $regex: subCategory.trim(), $options: "i" } },
+        { "subCategory.slug": { $regex: subCategory.trim(), $options: "i" } },
+        { "subCategory.id": subCategory.trim() },
       ];
     }
 
-    // Sorting
-    let sortObj = { _id: -1 };
-    if (sort === "price_asc") sortObj = { "pricing.basePrice": 1, cost: 1 };
-    if (sort === "price_desc") sortObj = { "pricing.basePrice": -1, cost: -1 };
-    if (sort === "rating") sortObj = { "metrics.rating": -1, rating: -1 };
-    if (sort === "popular") sortObj = { "metrics.completedBookings": -1, totalReviews: -1 };
+    // 7. City / Location Filter (checks if decorator operates in that city)
+    if (city && city !== "all") {
+      const decoratorsInCity = await decoratorCollection
+        .find({
+          $or: [
+            { "contactInfo.city": { $regex: city.trim(), $options: "i" } },
+            { serviceAreas: { $regex: city.trim(), $options: "i" } },
+          ],
+        })
+        .project({ _id: 1 })
+        .toArray();
+
+      const decoratorIds = decoratorsInCity.map((d) => d._id);
+      query.decoratorId = { $in: decoratorIds };
+    }
+
+    // 8. Price Range Filter (supports new pricing structure & legacy cost)
+    const minP = Number(minPrice || min_cost);
+    const maxP = Number(maxPrice || max_cost);
+    if (!isNaN(minP) || !isNaN(maxP)) {
+      const priceConditions = [];
+      const min = !isNaN(minP) ? minP : 0;
+      const max = !isNaN(maxP) ? maxP : Infinity;
+
+      priceConditions.push({
+        "pricing.discountedPrice": {
+          $gte: min,
+          ...(max !== Infinity && { $lte: max }),
+        },
+      });
+      priceConditions.push({
+        "pricing.basePrice": {
+          $gte: min,
+          ...(max !== Infinity && { $lte: max }),
+        },
+      });
+      priceConditions.push({
+        cost: {
+          $gte: min,
+          ...(max !== Infinity && { $lte: max }),
+        },
+      });
+
+      if (query.$or) {
+        query.$and = [{ $or: query.$or }, { $or: priceConditions }];
+        delete query.$or;
+      } else {
+        query.$or = priceConditions;
+      }
+    }
+
+    // 9. Sorting
+    let sortObj = { createdAt: -1, _id: 1 };
+    if (sort === "price_asc") {
+      sortObj = { "pricing.discountedPrice": 1, "pricing.basePrice": 1, cost: 1, _id: 1 };
+    } else if (sort === "price_desc") {
+      sortObj = { "pricing.discountedPrice": -1, "pricing.basePrice": -1, cost: -1, _id: 1 };
+    } else if (sort === "rating") {
+      sortObj = { "metrics.rating": -1, rating: -1, _id: 1 };
+    } else if (sort === "popular") {
+      sortObj = { "metrics.bookingCount": -1, "metrics.reviewCount": -1, _id: 1 };
+    } else if (sort === "name" || sort === "title") {
+      sortObj = { title: 1, serviceName: 1, _id: 1 };
+    }
 
     const pageNum = Math.max(1, parseInt(page, 10) || 1);
     const limitNum = Math.max(1, parseInt(limit, 10) || 12);
@@ -160,21 +169,123 @@ const getServices = async (req, res) => {
       .limit(limitNum)
       .toArray();
 
+    // Populate Decorator agency info for each service
+    const decoratorIds = [...new Set(services.map((s) => s.decoratorId).filter(Boolean))];
+    const decorators = await decoratorCollection
+      .find({ _id: { $in: decoratorIds } })
+      .project({
+        businessName: 1,
+        logo: 1,
+        "contactInfo.city": 1,
+        "contactInfo.phone": 1,
+        "metrics.rating": 1,
+        verification: 1,
+      })
+      .toArray();
+
+    const decoratorMap = new Map(decorators.map((d) => [d._id.toString(), d]));
+
+    const enrichedServices = services.map((s) => {
+      const dec = s.decoratorId ? decoratorMap.get(s.decoratorId.toString()) : null;
+      return {
+        ...s,
+        decorator: dec || null,
+      };
+    });
+
     res.send({
       success: true,
       totalCount,
       page: pageNum,
       limit: limitNum,
       totalPages: Math.max(1, Math.ceil(totalCount / limitNum)),
-      data: services,
+      data: enrichedServices,
     });
   } catch (error) {
-    res.status(500).send({ success: false, message: "Error fetching services", error: error.message });
+    res.status(500).send({
+      success: false,
+      message: "Error fetching services",
+      error: error.message,
+    });
+  }
+};
+
+// ========== Get Latest Services (Home Highlights) ==========
+const getLatestServices = async (req, res) => {
+  try {
+    const { limit = 8 } = req.query;
+    const services = await serviceCollection
+      .find({ status: "active" })
+      .sort({ createdAt: -1, _id: -1 })
+      .limit(Number(limit))
+      .toArray();
+
+    // Populate Decorators
+    const decoratorIds = [...new Set(services.map((s) => s.decoratorId).filter(Boolean))];
+    const decorators = await decoratorCollection
+      .find({ _id: { $in: decoratorIds } })
+      .project({
+        businessName: 1,
+        logo: 1,
+        "contactInfo.city": 1,
+        verification: 1,
+      })
+      .toArray();
+    const decoratorMap = new Map(decorators.map((d) => [d._id.toString(), d]));
+
+    const enriched = services.map((s) => ({
+      ...s,
+      decorator: s.decoratorId ? decoratorMap.get(s.decoratorId.toString()) : null,
+    }));
+
+    res.send({ success: true, count: enriched.length, data: enriched });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error fetching latest services",
+      error: error.message,
+    });
+  }
+};
+
+// ========== Get Featured / Top Rated Services ==========
+const getTopRatedServices = async (req, res) => {
+  try {
+    const { limit = 6 } = req.query;
+    const services = await serviceCollection
+      .find({ status: "active" })
+      .sort({ "metrics.rating": -1, "metrics.bookingCount": -1, _id: 1 })
+      .limit(Number(limit))
+      .toArray();
+
+    const decoratorIds = [...new Set(services.map((s) => s.decoratorId).filter(Boolean))];
+    const decorators = await decoratorCollection
+      .find({ _id: { $in: decoratorIds } })
+      .project({
+        businessName: 1,
+        logo: 1,
+        "contactInfo.city": 1,
+        verification: 1,
+      })
+      .toArray();
+    const decoratorMap = new Map(decorators.map((d) => [d._id.toString(), d]));
+
+    const enriched = services.map((s) => ({
+      ...s,
+      decorator: s.decoratorId ? decoratorMap.get(s.decoratorId.toString()) : null,
+    }));
+
+    res.send({ success: true, count: enriched.length, data: enriched });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error fetching top rated services",
+      error: error.message,
+    });
   }
 };
 
 // ========== Get Services by Decorator Agency ==========
-// Retrieves all active services created by a specific decorator
 const getServicesByDecorator = async (req, res) => {
   try {
     const { decoratorId } = req.params;
@@ -182,11 +293,12 @@ const getServicesByDecorator = async (req, res) => {
       return res.status(400).send({ success: false, message: "Invalid decorator ID format" });
     }
 
+    const { status = "active" } = req.query;
+    const query = { decoratorId: new ObjectId(decoratorId) };
+    if (status !== "all") query.status = status;
+
     const services = await serviceCollection
-      .find({
-        decoratorId: new ObjectId(decoratorId),
-        status: "active",
-      })
+      .find(query)
       .sort({ "metrics.rating": -1, _id: -1 })
       .toArray();
 
@@ -204,24 +316,7 @@ const getServicesByDecorator = async (req, res) => {
   }
 };
 
-// ========== Get Latest Services ==========
-// Retrieves the 8 most recently added services
-const getLatestServices = async (req, res) => {
-  try {
-    const services = await serviceCollection
-      .find({ status: "active" })
-      .sort({ _id: -1 })
-      .limit(8)
-      .toArray();
-
-    res.send({ success: true, data: services });
-  } catch (error) {
-    res.status(500).send({ success: false, message: "Error fetching latest services", error: error.message });
-  }
-};
-
 // ========== Get Service By ID ==========
-// Retrieves a single service by its ID
 const getServiceById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -234,24 +329,264 @@ const getServiceById = async (req, res) => {
       return res.status(404).send({ success: false, message: "Service not found" });
     }
 
-    // Attach decorator info if available
+    // Attach full Decorator profile
     if (service.decoratorId) {
       const decorator = await decoratorCollection.findOne({ _id: service.decoratorId });
-      service.decorator = decorator;
+      service.decorator = decorator || null;
     }
 
     res.send({ success: true, data: service });
   } catch (error) {
-    res.status(500).send({ success: false, message: "Error fetching service", error: error.message });
+    res.status(500).send({
+      success: false,
+      message: "Error fetching service by ID",
+      error: error.message,
+    });
+  }
+};
+
+// ========== Create Service (Authenticated Decorator / Admin) ==========
+const createService = async (req, res) => {
+  try {
+    const email = req.decoded_email;
+    const user = await userCollection.findOne({ email });
+
+    if (!user) {
+      return res.status(404).send({ success: false, message: "User not found" });
+    }
+
+    const {
+      title,
+      category,
+      subCategory,
+      shortDescription,
+      fullDescription,
+      pricing = {},
+      packages = [],
+      images = [],
+      coverImage,
+      specifications = {},
+      inclusions = [],
+      exclusions = [],
+      decoratorId,
+    } = req.body;
+
+    if (!title || !category) {
+      return res.status(400).send({
+        success: false,
+        message: "Title and Category are required",
+      });
+    }
+
+    // Determine decoratorId
+    let decId = decoratorId;
+    if (user.role === "decorator") {
+      const myDec = await decoratorCollection.findOne({ userId: user._id });
+      if (myDec) decId = myDec._id;
+    }
+
+    if (!decId || !ObjectId.isValid(decId)) {
+      return res.status(400).send({
+        success: false,
+        message: "Valid decorator agency ID is required to create a service",
+      });
+    }
+
+    const newService = {
+      decoratorId: new ObjectId(decId),
+      title: title.trim(),
+      slug: `${generateSlug(title)}-${Date.now().toString().slice(-4)}`,
+      category: typeof category === "string" ? category.trim() : category.name,
+      subCategory: typeof subCategory === "object" ? subCategory : { name: subCategory },
+      shortDescription: shortDescription?.trim() || "",
+      fullDescription: fullDescription?.trim() || "",
+      pricing: {
+        basePrice: Number(pricing.basePrice) || 0,
+        discountedPrice: Number(pricing.discountedPrice) || Number(pricing.basePrice) || 0,
+        unit: pricing.unit || "per_event",
+        depositRequiredPercent: Number(pricing.depositRequiredPercent) || 25,
+      },
+      packages: Array.isArray(packages) ? packages : [],
+      images: Array.isArray(images) && images.length > 0 ? images : [coverImage || "https://images.unsplash.com/photo-1519741497674-611481863552?w=800"],
+      coverImage: coverImage || images[0] || "https://images.unsplash.com/photo-1519741497674-611481863552?w=800",
+      specifications: {
+        setupDurationHours: Number(specifications.setupDurationHours) || 6,
+        teardownDurationHours: Number(specifications.teardownDurationHours) || 2,
+        minimumNoticeDays: Number(specifications.minimumNoticeDays) || 3,
+        spaceRequirement: specifications.spaceRequirement || "Standard Hall/Stage",
+        isOutdoorSuitable: Boolean(specifications.isOutdoorSuitable),
+      },
+      inclusions: Array.isArray(inclusions) ? inclusions : [],
+      exclusions: Array.isArray(exclusions) ? exclusions : [],
+      metrics: {
+        rating: 5.0,
+        reviewCount: 0,
+        bookingCount: 0,
+      },
+      status: "active",
+      featured: false,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+
+    const result = await serviceCollection.insertOne(newService);
+
+    res.send({
+      success: true,
+      message: "Service created successfully",
+      insertedId: result.insertedId,
+      data: { _id: result.insertedId, ...newService },
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error creating service",
+      error: error.message,
+    });
+  }
+};
+
+// ========== Update Service (Self / Admin) ==========
+const updateService = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ success: false, message: "Invalid service ID" });
+    }
+
+    const email = req.decoded_email;
+    const user = await userCollection.findOne({ email });
+    const existingService = await serviceCollection.findOne({ _id: new ObjectId(id) });
+
+    if (!existingService) {
+      return res.status(404).send({ success: false, message: "Service not found" });
+    }
+
+    // Permission Check: If decorator, verify ownership
+    if (user.role === "decorator") {
+      const myDec = await decoratorCollection.findOne({ userId: user._id });
+      if (!myDec || !existingService.decoratorId.equals(myDec._id)) {
+        return res.status(403).send({
+          success: false,
+          message: "You can only edit services belonging to your agency",
+        });
+      }
+    }
+
+    const updateFields = { ...req.body, updatedAt: new Date() };
+    delete updateFields._id;
+    delete updateFields.decoratorId; // Prevent changing decorator owner
+
+    if (updateFields.title && updateFields.title !== existingService.title) {
+      updateFields.slug = `${generateSlug(updateFields.title)}-${id.slice(-4)}`;
+    }
+
+    await serviceCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: updateFields }
+    );
+
+    const updated = await serviceCollection.findOne({ _id: new ObjectId(id) });
+
+    res.send({
+      success: true,
+      message: "Service updated successfully",
+      data: updated,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error updating service",
+      error: error.message,
+    });
+  }
+};
+
+// ========== Update Service Status (Active / Inactive) ==========
+const updateServiceStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ success: false, message: "Invalid service ID" });
+    }
+
+    if (!["active", "inactive", "archived"].includes(status)) {
+      return res.status(400).send({
+        success: false,
+        message: "Invalid status. Allowed: active, inactive, archived",
+      });
+    }
+
+    await serviceCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { status, updatedAt: new Date() } }
+    );
+
+    res.send({
+      success: true,
+      message: `Service status updated to ${status}`,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error updating service status",
+      error: error.message,
+    });
+  }
+};
+
+// ========== Delete Service (Self / Admin) ==========
+const deleteService = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ success: false, message: "Invalid service ID" });
+    }
+
+    const email = req.decoded_email;
+    const user = await userCollection.findOne({ email });
+    const existingService = await serviceCollection.findOne({ _id: new ObjectId(id) });
+
+    if (!existingService) {
+      return res.status(404).send({ success: false, message: "Service not found" });
+    }
+
+    // Permission Check
+    if (user.role === "decorator") {
+      const myDec = await decoratorCollection.findOne({ userId: user._id });
+      if (!myDec || !existingService.decoratorId.equals(myDec._id)) {
+        return res.status(403).send({
+          success: false,
+          message: "You can only delete services belonging to your agency",
+        });
+      }
+    }
+
+    await serviceCollection.deleteOne({ _id: new ObjectId(id) });
+
+    res.send({
+      success: true,
+      message: "Service deleted successfully",
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error deleting service",
+      error: error.message,
+    });
   }
 };
 
 module.exports = {
+  getServices,
+  getLatestServices,
+  getTopRatedServices,
+  getServicesByDecorator,
+  getServiceById,
   createService,
   updateService,
+  updateServiceStatus,
   deleteService,
-  getServices,
-  getServicesByDecorator,
-  getLatestServices,
-  getServiceById,
 };
