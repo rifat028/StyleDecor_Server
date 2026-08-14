@@ -10,6 +10,8 @@ const collections = {
   get paymentsCollection() { return getDB().collection("payments"); },
   get categoryCollection() { return getDB().collection("categories"); },
   get agentCollection() { return getDB().collection("agents"); },
+  get decoratorReviewCollection() { return getDB().collection("decorator_reviews"); },
+  get agentReviewCollection() { return getDB().collection("agent_reviews"); },
 };
 
 module.exports = collections;
