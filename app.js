@@ -7,6 +7,7 @@ const userRoutes = require("./routes/userRoutes");
 const bookingRoutes = require("./routes/bookingRoutes");
 const decoratorRoutes = require("./routes/decoratorRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
+const categoryRoutes = require("./routes/categoryRoutes");
 
 // ========== Initialize Express App ==========
 const app = express();
@@ -26,5 +27,6 @@ app.use("/users", userRoutes);
 app.use("/bookings", bookingRoutes);
 app.use("/decorators", decoratorRoutes);
 app.use("/", paymentRoutes);
+app.use("/categories", categoryRoutes);
 
 module.exports = app;

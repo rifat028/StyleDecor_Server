@@ -8,6 +8,7 @@ const collections = {
   get userCollection() { return getDB().collection("users"); },
   get decoratorCollection() { return getDB().collection("decorators"); },
   get paymentsCollection() { return getDB().collection("payments"); },
+  get categoryCollection() { return getDB().collection("categories"); },
 };
 
 module.exports = collections;
