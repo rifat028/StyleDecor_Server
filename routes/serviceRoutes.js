@@ -6,22 +6,23 @@ const serviceController = require("../controllers/serviceController");
 
 // ========== Service Endpoints ==========
 
-// Create a new service (Admin only)
-router.post("/", verifyFbToken, verifyAdmin, serviceController.createService);
+// 1. Static / Named Endpoints
+router.get("/latest", serviceController.getLatestServices);
+router.get("/decorator/:decoratorId", serviceController.getServicesByDecorator);
 
-// Update an existing service (Admin only)
-router.patch("/:id", verifyFbToken, verifyAdmin, serviceController.updateService);
-
-// Delete a service (Admin only)
-router.delete("/:id", verifyFbToken, verifyAdmin, serviceController.deleteService);
-
-// Get all services with optional filters (search, category, price range)
+// 2. Query-able List (Public & Admin, with search, category, price filtering)
 router.get("/", serviceController.getServices);
 
-// Get latest 8 services
-router.get("/latest", serviceController.getLatestServices);
+// 3. Create a new service (Admin / Decorator)
+router.post("/", verifyFbToken, serviceController.createService);
 
-// Get a single service by ID
+// 4. Update an existing service (Admin / Decorator)
+router.patch("/:id", verifyFbToken, serviceController.updateService);
+
+// 5. Delete a service (Admin / Decorator)
+router.delete("/:id", verifyFbToken, serviceController.deleteService);
+
+// 6. Get a single service by ID
 router.get("/:id", serviceController.getServiceById);
 
 module.exports = router;

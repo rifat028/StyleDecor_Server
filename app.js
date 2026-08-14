@@ -8,6 +8,8 @@ const bookingRoutes = require("./routes/bookingRoutes");
 const decoratorRoutes = require("./routes/decoratorRoutes");
 const paymentRoutes = require("./routes/paymentRoutes");
 const categoryRoutes = require("./routes/categoryRoutes");
+const agentRoutes = require("./routes/agentRoutes");
+const reviewRoutes = require("./routes/reviewRoutes");
 
 // ========== Initialize Express App ==========
 const app = express();
@@ -28,5 +30,7 @@ app.use("/bookings", bookingRoutes);
 app.use("/decorators", decoratorRoutes);
 app.use("/", paymentRoutes);
 app.use("/categories", categoryRoutes);
+app.use("/agents", agentRoutes);
+app.use("/reviews", reviewRoutes);
 
 module.exports = app;
