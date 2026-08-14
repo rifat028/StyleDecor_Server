@@ -130,30 +130,6 @@ const getTopRatedDecorators = async (req, res) => {
   }
 };
 
-// ========== Get Featured Decorators (Public) ==========
-// Retrieves active featured decorator agencies
-const getFeaturedDecorators = async (req, res) => {
-  try {
-    const decorators = await decoratorCollection
-      .find({ status: "active", featured: true })
-      .sort({ "metrics.rating": -1, _id: 1 })
-      .limit(6)
-      .toArray();
-
-    res.send({
-      success: true,
-      totalCount: decorators.length,
-      data: decorators,
-    });
-  } catch (error) {
-    res.status(500).send({
-      success: false,
-      message: "Error fetching featured decorators",
-      error: error.message,
-    });
-  }
-};
-
 // ========== Get Decorator By ID ==========
 // Retrieves a single decorator profile by its MongoDB ObjectId
 const getDecoratorById = async (req, res) => {
@@ -173,26 +149,6 @@ const getDecoratorById = async (req, res) => {
     res.status(500).send({
       success: false,
       message: "Error fetching decorator by ID",
-      error: error.message,
-    });
-  }
-};
-
-// ========== Get Decorator By Slug ==========
-// Retrieves a single decorator profile by its unique URL slug
-const getDecoratorBySlug = async (req, res) => {
-  try {
-    const { slug } = req.params;
-    const decorator = await decoratorCollection.findOne({ slug: slug.trim() });
-    if (!decorator) {
-      return res.status(404).send({ success: false, message: "Decorator not found" });
-    }
-
-    res.send({ success: true, data: decorator });
-  } catch (error) {
-    res.status(500).send({
-      success: false,
-      message: "Error fetching decorator by slug",
       error: error.message,
     });
   }
@@ -521,9 +477,7 @@ const deleteDecorator = async (req, res) => {
 module.exports = {
   getDecorators,
   getTopRatedDecorators,
-  getFeaturedDecorators,
   getDecoratorById,
-  getDecoratorBySlug,
   getMyDecoratorProfile,
   getDecoratorByEmail,
   createDecorator,

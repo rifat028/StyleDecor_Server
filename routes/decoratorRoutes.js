@@ -6,34 +6,40 @@ const decoratorController = require("../controllers/decoratorController");
 
 // ========== Decorator Routes ==========
 
-// Public Collections & Highlights
+// 1. Static / High-priority Endpoints
 router.get("/toprated", decoratorController.getTopRatedDecorators);
-router.get("/featured", decoratorController.getFeaturedDecorators);
 
-// Authenticated: Current Logged-in Decorator Profile
+// 2. Authenticated Profile Endpoint
 router.get("/me", verifyFbToken, decoratorController.getMyDecoratorProfile);
 
-// Specific Lookup Endpoints (Placed before parameterized routes)
+// 3. Named Param Endpoints
 router.get("/id/:id", decoratorController.getDecoratorById);
-router.get("/slug/:slug", decoratorController.getDecoratorBySlug);
 router.get("/email/:email", decoratorController.getDecoratorByEmail);
 
-// Backward Compatibility for legacy /:email route
-router.get("/:email([\\w.%+-]+@[\\w.-]+\\.[a-zA-Z]{2,})", decoratorController.getDecoratorByEmail);
-
-// Query-able List (Public & Admin, with filtering, search, pagination)
+// 4. Query-able List (Public & Admin, with filtering, search, pagination)
 router.get("/", decoratorController.getDecorators);
 
-// Create / Apply as Decorator (Authenticated)
+// 5. Create / Apply as Decorator (Authenticated)
 router.post("/", verifyFbToken, decoratorController.createDecorator);
 
-// Admin-only: Update verification status, active status, or featured state
+// 6. Admin-only: Update verification status, active status, or featured state
 router.patch("/:id/status", verifyFbToken, verifyAdmin, decoratorController.updateDecoratorStatus);
 
-// Update Decorator Profile (Self / Admin)
+// 7. Update Decorator Profile (Self / Admin)
 router.patch("/:id", verifyFbToken, decoratorController.updateDecorator);
 
-// Admin-only: Delete Decorator Profile
+// 8. Admin-only: Delete Decorator Profile
 router.delete("/:id", verifyFbToken, verifyAdmin, decoratorController.deleteDecorator);
+
+// 9. Backward Compatibility fallback for /:param (handles both email or ID)
+router.get("/:param", async (req, res, next) => {
+  const { param } = req.params;
+  if (param.includes("@")) {
+    req.params.email = param;
+    return decoratorController.getDecoratorByEmail(req, res, next);
+  }
+  req.params.id = param;
+  return decoratorController.getDecoratorById(req, res, next);
+});
 
 module.exports = router;
