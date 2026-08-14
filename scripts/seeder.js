@@ -1,12 +1,13 @@
 const dotenv = require("dotenv");
 const { client } = require("../config/db");
-const { categoryCollection, userCollection, decoratorCollection, serviceCollection, agentCollection, bookingCollection } = require("../models/collections");
+const { categoryCollection, userCollection, decoratorCollection, serviceCollection, agentCollection, bookingCollection, paymentsCollection } = require("../models/collections");
 const { categoriesData } = require("../data/categoriesData");
 const { usersData } = require("../data/usersData");
 const { decoratorsData } = require("../data/decoratorsData");
 const { servicesData } = require("../data/servicesData");
 const { agentsData } = require("../data/agentsData");
 const { bookingsData } = require("../data/bookingsData");
+const { paymentsData } = require("../data/paymentsData");
 
 // Load env vars
 dotenv.config();
@@ -22,7 +23,8 @@ const importData = async () => {
     await serviceCollection.deleteMany();
     await agentCollection.deleteMany();
     await bookingCollection.deleteMany();
-    console.log("🗑️  Existing categories, users, decorators, services, agents, and bookings destroyed");
+    await paymentsCollection.deleteMany();
+    console.log("🗑️  Existing categories, users, decorators, services, agents, bookings, and payments destroyed");
 
     await categoryCollection.insertMany(categoriesData);
     await userCollection.insertMany(usersData);
@@ -30,7 +32,8 @@ const importData = async () => {
     await serviceCollection.insertMany(servicesData);
     await agentCollection.insertMany(agentsData);
     await bookingCollection.insertMany(bookingsData);
-    console.log("📥 Categories, Users, Decorators, Services, Agents, and Bookings imported successfully!");
+    await paymentsCollection.insertMany(paymentsData);
+    console.log("📥 Categories, Users, Decorators, Services, Agents, Bookings, and Payments imported successfully!");
 
     await client.close();
     process.exit(0);
@@ -52,7 +55,8 @@ const destroyData = async () => {
     await serviceCollection.deleteMany();
     await agentCollection.deleteMany();
     await bookingCollection.deleteMany();
-    console.log("🗑️  All categories, users, decorators, services, agents, and bookings destroyed successfully!");
+    await paymentsCollection.deleteMany();
+    console.log("🗑️  All categories, users, decorators, services, agents, bookings, and payments destroyed successfully!");
 
     await client.close();
     process.exit(0);
