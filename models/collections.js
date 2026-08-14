@@ -9,6 +9,7 @@ const collections = {
   get decoratorCollection() { return getDB().collection("decorators"); },
   get paymentsCollection() { return getDB().collection("payments"); },
   get categoryCollection() { return getDB().collection("categories"); },
+  get agentCollection() { return getDB().collection("agents"); },
 };
 
 module.exports = collections;
