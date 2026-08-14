@@ -44,6 +44,24 @@ const verifyDecorator = async (req, res, next) => {
     if (!user || user.role !== "decorator") {
       return res.status(403).send({ message: "forbidden access" });
     }
+    req.user = user;
+    next();
+  } catch (error) {
+    return res.status(500).send({ message: "Internal server error" });
+  }
+};
+
+// ========== Verify Agent Role Middleware ==========
+const verifyAgent = async (req, res, next) => {
+  try {
+    const email = req.decoded_email;
+    const query = { email };
+    const user = await userCollection.findOne(query);
+
+    if (!user || user.role !== "agent") {
+      return res.status(403).send({ message: "forbidden access" });
+    }
+    req.user = user;
     next();
   } catch (error) {
     return res.status(500).send({ message: "Internal server error" });
@@ -53,5 +71,6 @@ const verifyDecorator = async (req, res, next) => {
 module.exports = {
   verifyFbToken,
   verifyAdmin,
-  verifyDecorator
+  verifyDecorator,
+  verifyAgent,
 };

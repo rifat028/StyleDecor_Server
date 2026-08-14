@@ -6,11 +6,23 @@ const userController = require("../controllers/userController");
 
 // ========== User Endpoints ==========
 
-// Create a new user (Client by default)
+// Create or sync user upon login/signup
 router.post("/", userController.createUser);
 
-// Get a single user by email (User access only)
-router.get("/:email", verifyFbToken, userController.getUserByEmail);
+// Get current logged-in user profile (from auth token)
+router.get("/me", verifyFbToken, userController.getMyProfile);
+
+// Get user statistics (Admin only)
+router.get("/stats", verifyFbToken, verifyAdmin, userController.getUserStats);
+
+// Get all users with filters & pagination (Admin only)
+router.get("/", verifyFbToken, verifyAdmin, userController.getAllUsers);
+
+// Get a single user by ID
+router.get("/:id", userController.getUserById);
+
+// Update current user profile
+router.patch("/profile", verifyFbToken, userController.updateUserProfile);
 
 // Update user role (Admin only)
 router.patch("/role", verifyFbToken, verifyAdmin, userController.updateUserRole);
