@@ -1,32 +1,39 @@
 // ========== Imports ==========
 const express = require("express");
 const router = express.Router();
-const { verifyFbToken, verifyAdmin, verifyDecorator } = require("../middleware/authMiddleware");
+const { verifyFbToken, verifyAdmin } = require("../middleware/authMiddleware");
 const decoratorController = require("../controllers/decoratorController");
 
-// ========== Decorator Endpoints ==========
+// ========== Decorator Routes ==========
 
-// Important: place /toprated before /:email to avoid route collision
-
-// Add a decorator request
-router.post("/", verifyFbToken, decoratorController.createDecoratorRequest);
-
-// Get selected decorators based on status or location (Admin only)
-router.get("/", verifyFbToken, verifyAdmin, decoratorController.getDecorators);
-
-// Get top rated decorators for the home page (Publicly accessible)
+// Public Collections & Highlights
 router.get("/toprated", decoratorController.getTopRatedDecorators);
+router.get("/featured", decoratorController.getFeaturedDecorators);
 
-// Get a decorator request by email (Decorator only)
-router.get("/:email", verifyFbToken, verifyDecorator, decoratorController.getDecoratorByEmail);
+// Authenticated: Current Logged-in Decorator Profile
+router.get("/me", verifyFbToken, decoratorController.getMyDecoratorProfile);
 
-// Update a decorator's pending task count when assigned (Admin only)
-router.patch("/:id/task", verifyFbToken, verifyAdmin, decoratorController.updateDecoratorTaskCount);
+// Specific Lookup Endpoints (Placed before parameterized routes)
+router.get("/id/:id", decoratorController.getDecoratorById);
+router.get("/slug/:slug", decoratorController.getDecoratorBySlug);
+router.get("/email/:email", decoratorController.getDecoratorByEmail);
 
-// Update a decorator's acceptance status (Admin only)
-router.patch("/:id", verifyFbToken, verifyAdmin, decoratorController.updateDecoratorStatus);
+// Backward Compatibility for legacy /:email route
+router.get("/:email([\\w.%+-]+@[\\w.-]+\\.[a-zA-Z]{2,})", decoratorController.getDecoratorByEmail);
 
-// Delete a decorator (Admin only)
+// Query-able List (Public & Admin, with filtering, search, pagination)
+router.get("/", decoratorController.getDecorators);
+
+// Create / Apply as Decorator (Authenticated)
+router.post("/", verifyFbToken, decoratorController.createDecorator);
+
+// Admin-only: Update verification status, active status, or featured state
+router.patch("/:id/status", verifyFbToken, verifyAdmin, decoratorController.updateDecoratorStatus);
+
+// Update Decorator Profile (Self / Admin)
+router.patch("/:id", verifyFbToken, decoratorController.updateDecorator);
+
+// Admin-only: Delete Decorator Profile
 router.delete("/:id", verifyFbToken, verifyAdmin, decoratorController.deleteDecorator);
 
 module.exports = router;
