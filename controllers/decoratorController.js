@@ -187,31 +187,6 @@ const getMyDecoratorProfile = async (req, res) => {
   }
 };
 
-// ========== Get Decorator By Email (Backward Compatibility) ==========
-const getDecoratorByEmail = async (req, res) => {
-  try {
-    const { email } = req.params;
-    let decorator = await decoratorCollection.findOne({
-      $or: [{ "contactInfo.email": email }, { email }],
-    });
-
-    if (!decorator) {
-      const user = await userCollection.findOne({ email });
-      if (user) {
-        decorator = await decoratorCollection.findOne({ userId: user._id });
-      }
-    }
-
-    if (!decorator) {
-      return res.status(404).send({ success: false, message: "Decorator not found" });
-    }
-
-    res.send(decorator);
-  } catch (error) {
-    res.status(500).send({ success: false, message: "Error fetching decorator", error: error.message });
-  }
-};
-
 // ========== Create Decorator Profile / Application ==========
 // Allows a user to register/apply as a decorator
 const createDecorator = async (req, res) => {
@@ -432,6 +407,14 @@ const updateDecoratorStatus = async (req, res) => {
 
     const updatedDecorator = await decoratorCollection.findOne({ _id: new ObjectId(id) });
 
+    // If status became active, sync the linked user's role to decorator
+    if (status === "active" && updatedDecorator.userId) {
+      await userCollection.updateOne(
+        { _id: updatedDecorator.userId },
+        { $set: { role: "decorator", updatedAt: new Date() } }
+      );
+    }
+
     res.send({
       success: true,
       message: "Decorator status updated successfully",
@@ -479,7 +462,6 @@ module.exports = {
   getTopRatedDecorators,
   getDecoratorById,
   getMyDecoratorProfile,
-  getDecoratorByEmail,
   createDecorator,
   updateDecorator,
   updateDecoratorStatus,
