@@ -378,19 +378,23 @@ const createService = async (req, res) => {
       });
     }
 
-    // Determine decoratorId
-    let decId = decoratorId;
-    if (user.role === "decorator") {
-      const myDec = await decoratorCollection.findOne({ userId: user._id });
-      if (myDec) decId = myDec._id;
-    }
-
-    if (!decId || !ObjectId.isValid(decId)) {
-      return res.status(400).send({
+    // Ensure only registered decorators can create services for their own agency
+    if (user.role !== "decorator") {
+      return res.status(403).send({
         success: false,
-        message: "Valid decorator agency ID is required to create a service",
+        message: "Only registered decorators can publish service packages for their agency.",
       });
     }
+
+    const myDec = await decoratorCollection.findOne({ userId: user._id });
+    if (!myDec) {
+      return res.status(404).send({
+        success: false,
+        message: "Decorator agency profile not found for this account.",
+      });
+    }
+
+    const decId = myDec._id;
 
     const newService = {
       decoratorId: new ObjectId(decId),
@@ -462,15 +466,20 @@ const updateService = async (req, res) => {
       return res.status(404).send({ success: false, message: "Service not found" });
     }
 
-    // Permission Check: If decorator, verify ownership
-    if (user.role === "decorator") {
-      const myDec = await decoratorCollection.findOne({ userId: user._id });
-      if (!myDec || !existingService.decoratorId.equals(myDec._id)) {
-        return res.status(403).send({
-          success: false,
-          message: "You can only edit services belonging to your agency",
-        });
-      }
+    // Permission Check: Only the owning decorator can edit service details
+    if (user.role !== "decorator") {
+      return res.status(403).send({
+        success: false,
+        message: "Only the owning decorator can edit package details. Admins can only manage status/visibility.",
+      });
+    }
+
+    const myDec = await decoratorCollection.findOne({ userId: user._id });
+    if (!myDec || !existingService.decoratorId.equals(myDec._id)) {
+      return res.status(403).send({
+        success: false,
+        message: "You can only edit services belonging to your own agency.",
+      });
     }
 
     const updateFields = { ...req.body, updatedAt: new Date() };
@@ -502,31 +511,41 @@ const updateService = async (req, res) => {
   }
 };
 
-// ========== Update Service Status (Active / Inactive) ==========
+// ========== Update Service Status / Featured State (Admin / Owner Decorator) ==========
 const updateServiceStatus = async (req, res) => {
   try {
     const { id } = req.params;
-    const { status } = req.body;
+    const { status, featured } = req.body;
 
     if (!ObjectId.isValid(id)) {
       return res.status(400).send({ success: false, message: "Invalid service ID" });
     }
 
-    if (!["active", "inactive", "archived"].includes(status)) {
-      return res.status(400).send({
-        success: false,
-        message: "Invalid status. Allowed: active, inactive, archived",
-      });
+    const updateDoc = { updatedAt: new Date() };
+
+    if (status) {
+      if (!["active", "inactive", "archived"].includes(status)) {
+        return res.status(400).send({
+          success: false,
+          message: "Invalid status. Allowed: active, inactive, archived",
+        });
+      }
+      updateDoc.status = status;
+    }
+
+    if (typeof featured === "boolean") {
+      updateDoc.featured = featured;
     }
 
     await serviceCollection.updateOne(
       { _id: new ObjectId(id) },
-      { $set: { status, updatedAt: new Date() } }
+      { $set: updateDoc }
     );
 
     res.send({
       success: true,
-      message: `Service status updated to ${status}`,
+      message: "Service visibility updated successfully",
+      data: updateDoc,
     });
   } catch (error) {
     res.status(500).send({

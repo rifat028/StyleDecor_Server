@@ -6,28 +6,32 @@ const bookingController = require("../controllers/bookingController");
 
 // ========== Booking Endpoints ==========
 
-// Create a service booking
+// 1. Static / Specific Named Routes
+router.get("/my-bookings", verifyFbToken, bookingController.getMyBookings);
+router.get("/user/:email", verifyFbToken, bookingController.getMyBookings);
+router.get("/client/:email", verifyFbToken, bookingController.getMyBookings);
+router.get("/decorator/:decoratorId", verifyFbToken, bookingController.getBookingsByDecorator);
+router.get("/agent/:agentId", verifyFbToken, bookingController.getBookingsByAgent);
+router.get("/id/:id", verifyFbToken, bookingController.getBookingById);
+
+// 2. Query List & Create
+router.get("/", verifyFbToken, bookingController.getBookings);
 router.post("/", verifyFbToken, bookingController.createBooking);
 
-// Get all bookings with filter and pagination (Admin only)
-router.get("/", verifyFbToken, verifyAdmin, bookingController.getBookings);
+// 3. Assign & Status Lifecycle Updates
+router.patch("/:id/assign", verifyFbToken, bookingController.assignBooking);
+router.patch("/:id/status", verifyFbToken, bookingController.updateBookingStatus);
 
-// Get bookings assigned to a specific decorator (Decorator only)
-router.get("/decorator/:decoratorId", verifyFbToken, verifyDecorator, bookingController.getBookingsByDecorator);
-
-// Get my own booking by email
-router.get("/:email", verifyFbToken, bookingController.getMyBookings);
-
-// Delete a booking by client
+// 4. Update & Delete
+router.patch("/:id", verifyFbToken, bookingController.updateBookingInfo);
 router.delete("/:id", verifyFbToken, bookingController.deleteBooking);
 
-// Assign decorator to booking (Admin only)
-router.patch("/:id/assign", verifyFbToken, verifyAdmin, bookingController.assignBooking);
-
-// Update booking status (Decorator only)
-router.patch("/:id/status", verifyFbToken, verifyDecorator, bookingController.updateBookingStatus);
-
-// Update booking details (Client only)
-router.patch("/:id", verifyFbToken, bookingController.updateBookingInfo);
+// 5. Fallback for Email Param (Backward Compatibility: GET /bookings/:email)
+router.get("/:email", verifyFbToken, (req, res, next) => {
+  if (req.params.email && req.params.email.includes("@")) {
+    return bookingController.getMyBookings(req, res);
+  }
+  return bookingController.getBookingById(req, res);
+});
 
 module.exports = router;
