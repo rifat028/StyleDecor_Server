@@ -139,14 +139,27 @@ const getDecoratorById = async (req, res) => {
     if (ObjectId.isValid(id)) {
       query = { $or: [{ _id: new ObjectId(id) }, { userId: new ObjectId(id) }] };
     } else {
-      query = {
-        $or: [
-          { slug: id },
-          { "contactInfo.email": id },
-          { email: id },
-          { businessName: id },
-        ],
-      };
+      const user = await userCollection.findOne({ email: id.toLowerCase().trim() });
+      if (user) {
+        query = {
+          $or: [
+            { userId: user._id },
+            { email: id },
+            { "contactInfo.email": id },
+            { slug: id },
+            { businessName: id },
+          ],
+        };
+      } else {
+        query = {
+          $or: [
+            { slug: id },
+            { "contactInfo.email": id },
+            { email: id },
+            { businessName: id },
+          ],
+        };
+      }
     }
 
     const decorator = await decoratorCollection.findOne(query);
