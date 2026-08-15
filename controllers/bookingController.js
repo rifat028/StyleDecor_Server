@@ -292,6 +292,13 @@ const createBooking = async (req, res) => {
     const email = req.decoded_email;
     const user = await userCollection.findOne({ email });
 
+    if (user?.role === "admin") {
+      return res.status(403).send({
+        success: false,
+        message: "Admin accounts cannot create bookings. Bookings can only be placed by customers.",
+      });
+    }
+
     const {
       serviceId,
       decoratorId,
@@ -394,9 +401,19 @@ const createBooking = async (req, res) => {
   }
 };
 
-// ========== Assign Booking to Agent / Decorator (Admin / Decorator) ==========
+// ========== Assign Booking to Agent / Decorator (Decorator Only) ==========
 const assignBooking = async (req, res) => {
   try {
+    const email = req.decoded_email;
+    const user = await userCollection.findOne({ email });
+
+    if (user?.role === "admin") {
+      return res.status(403).send({
+        success: false,
+        message: "Admin accounts cannot assign specialists. Only the providing decorator agency can manage assignments.",
+      });
+    }
+
     const { id } = req.params;
     const { decoratorId, agentId, assignTo, status = "confirmed" } = req.body;
 
@@ -442,9 +459,19 @@ const assignBooking = async (req, res) => {
   }
 };
 
-// ========== Update Booking Status (Lifecycle Progress) ==========
+// ========== Update Booking Status (Decorator / Customer Only) ==========
 const updateBookingStatus = async (req, res) => {
   try {
+    const email = req.decoded_email;
+    const user = await userCollection.findOne({ email });
+
+    if (user?.role === "admin") {
+      return res.status(403).send({
+        success: false,
+        message: "Admin accounts cannot modify booking status. Only the providing decorator agency can advance project lifecycle stages.",
+      });
+    }
+
     const { id } = req.params;
     const { status, cancellationReason } = req.body;
 
@@ -535,9 +562,19 @@ const updateBookingStatus = async (req, res) => {
   }
 };
 
-// ========== Update Booking Details (Customer / Admin) ==========
+// ========== Update Booking Details (Customer Only) ==========
 const updateBookingInfo = async (req, res) => {
   try {
+    const email = req.decoded_email;
+    const user = await userCollection.findOne({ email });
+
+    if (user?.role === "admin") {
+      return res.status(403).send({
+        success: false,
+        message: "Admin accounts cannot edit customer booking logistics.",
+      });
+    }
+
     const { id } = req.params;
     if (!ObjectId.isValid(id)) {
       return res.status(400).send({ success: false, message: "Invalid booking ID" });
@@ -596,9 +633,19 @@ const updateBookingInfo = async (req, res) => {
   }
 };
 
-// ========== Delete / Cancel Booking ==========
+// ========== Delete / Cancel Booking (Customer / Decorator Only) ==========
 const deleteBooking = async (req, res) => {
   try {
+    const email = req.decoded_email;
+    const user = await userCollection.findOne({ email });
+
+    if (user?.role === "admin") {
+      return res.status(403).send({
+        success: false,
+        message: "Admin accounts cannot delete booking records.",
+      });
+    }
+
     const { id } = req.params;
     if (!ObjectId.isValid(id)) {
       return res.status(400).send({ success: false, message: "Invalid booking ID" });
