@@ -29,7 +29,6 @@ app.use("/users", userRoutes);
 app.use("/bookings", bookingRoutes);
 app.use("/decorators", decoratorRoutes);
 app.use("/payments", paymentRoutes);
-app.use("/", paymentRoutes);
 app.use("/categories", categoryRoutes);
 app.use("/agents", agentRoutes);
 app.use("/reviews", reviewRoutes);
