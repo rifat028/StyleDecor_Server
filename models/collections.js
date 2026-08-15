@@ -10,8 +10,10 @@ const collections = {
   get paymentsCollection() { return getDB().collection("payments"); },
   get categoryCollection() { return getDB().collection("categories"); },
   get agentCollection() { return getDB().collection("agents"); },
-  get decoratorReviewCollection() { return getDB().collection("decorator_reviews"); },
-  get agentReviewCollection() { return getDB().collection("agent_reviews"); },
+  get reviewCollection() { return getDB().collection("reviews"); },
+  // Compatibility getters mapping to single 'reviews' collection
+  get decoratorReviewCollection() { return getDB().collection("reviews"); },
+  get agentReviewCollection() { return getDB().collection("reviews"); },
 };
 
 module.exports = collections;

@@ -5,7 +5,7 @@ const {
   userCollection,
   decoratorCollection,
   bookingCollection,
-  agentReviewCollection,
+  reviewCollection,
 } = require("../models/collections");
 
 // ========== Helper: Batch Entity Enrichment ==========
@@ -384,9 +384,9 @@ const getMyPerformance = async (req, res) => {
       return res.status(404).send({ success: false, message: "Field Agent profile not found" });
     }
 
-    // Fetch all appraisal reviews from agentReviewCollection
-    const reviews = await agentReviewCollection
-      .find({ agentId: agent._id })
+    // Fetch all appraisal reviews from reviewCollection
+    const reviews = await reviewCollection
+      .find({ agentId: agent._id, status: "published" })
       .sort({ createdAt: -1 })
       .toArray();
 
@@ -859,10 +859,10 @@ const createAgentReview = async (req, res) => {
       updatedAt: new Date(),
     };
 
-    const result = await agentReviewCollection.insertOne(newReview);
+    const result = await reviewCollection.insertOne(newReview);
 
     // Recalculate agent rating
-    const allReviews = await agentReviewCollection.find({ agentId: agent._id }).toArray();
+    const allReviews = await reviewCollection.find({ agentId: agent._id, status: "published" }).toArray();
     const newAvg = (allReviews.reduce((sum, r) => sum + Number(r.rating), 0) / allReviews.length).toFixed(1);
 
     await agentCollection.updateOne(

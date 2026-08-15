@@ -1,6 +1,6 @@
 const dotenv = require("dotenv");
 const admin = require("../config/firebase");
-const { client } = require("../config/db");
+const { client, getDB } = require("../config/db");
 const {
   categoryCollection,
   userCollection,
@@ -9,8 +9,7 @@ const {
   agentCollection,
   bookingCollection,
   paymentsCollection,
-  decoratorReviewCollection,
-  agentReviewCollection,
+  reviewCollection,
 } = require("../models/collections");
 const { categoriesData } = require("../data/categoriesData");
 const { usersData } = require("../data/usersData");
@@ -19,8 +18,7 @@ const { servicesData } = require("../data/servicesData");
 const { agentsData } = require("../data/agentsData");
 const { bookingsData } = require("../data/bookingsData");
 const { paymentsData } = require("../data/paymentsData");
-const { decoratorReviewsData } = require("../data/decoratorReviewsData");
-const { agentReviewsData } = require("../data/agentReviewsData");
+const { reviewsData } = require("../data/reviewsData");
 
 // Load env vars
 dotenv.config();
@@ -90,6 +88,8 @@ const importData = async () => {
     await client.connect();
     console.log("✅ Connected to MongoDB Atlas for Seeding");
 
+    const db = getDB();
+
     // Clean existing collections
     await categoryCollection.deleteMany();
     await userCollection.deleteMany();
@@ -98,14 +98,18 @@ const importData = async () => {
     await agentCollection.deleteMany();
     await bookingCollection.deleteMany();
     await paymentsCollection.deleteMany();
-    await decoratorReviewCollection.deleteMany();
-    await agentReviewCollection.deleteMany();
+    await reviewCollection.deleteMany();
+
+    // Drop legacy review collections if they exist
+    await db.collection("decorator_reviews").drop().catch(() => {});
+    await db.collection("agent_reviews").drop().catch(() => {});
+
     console.log("🗑️  Existing categories, users, decorators, services, agents, bookings, payments, and reviews destroyed");
 
     // Automatically ensure all Firebase UIDs are in sync
     const usersWithFirebaseUid = await syncFirebaseAuthUsers(usersData);
 
-    // Insert all 9 collections
+    // Insert all 8 collections
     await categoryCollection.insertMany(categoriesData);
     await userCollection.insertMany(usersWithFirebaseUid);
     await decoratorCollection.insertMany(decoratorsData);
@@ -113,10 +117,10 @@ const importData = async () => {
     await agentCollection.insertMany(agentsData);
     await bookingCollection.insertMany(bookingsData);
     await paymentsCollection.insertMany(paymentsData);
-    await decoratorReviewCollection.insertMany(decoratorReviewsData);
-    await agentReviewCollection.insertMany(agentReviewsData);
+    await reviewCollection.insertMany(reviewsData);
 
-    console.log("📥 All 9 Collections Imported Successfully with Firebase UIDs & Roles Linked!");
+    console.log("📥 All 8 Collections Imported Successfully with Firebase UIDs & Roles Linked!");
+    console.log(`✨ Single 'reviews' collection created with 80 records containing agentId & agentName`);
     console.log(`🔑 All users ready to log in with password: ${DEFAULT_PASSWORD}`);
 
     await client.close();
@@ -133,6 +137,7 @@ const destroyData = async () => {
     await client.connect();
     console.log("✅ Connected to MongoDB Atlas for Seeding");
 
+    const db = getDB();
     await categoryCollection.deleteMany();
     await userCollection.deleteMany();
     await decoratorCollection.deleteMany();
@@ -140,8 +145,11 @@ const destroyData = async () => {
     await agentCollection.deleteMany();
     await bookingCollection.deleteMany();
     await paymentsCollection.deleteMany();
-    await decoratorReviewCollection.deleteMany();
-    await agentReviewCollection.deleteMany();
+    await reviewCollection.deleteMany();
+
+    await db.collection("decorator_reviews").drop().catch(() => {});
+    await db.collection("agent_reviews").drop().catch(() => {});
+
     console.log("🗑️  All categories, users, decorators, services, agents, bookings, payments, and reviews destroyed successfully!");
 
     await client.close();
