@@ -130,16 +130,26 @@ const getTopRatedDecorators = async (req, res) => {
   }
 };
 
-// ========== Get Decorator By ID ==========
-// Retrieves a single decorator profile by its MongoDB ObjectId
+// ========== Get Decorator By ID / Email / Slug ==========
+// Retrieves a single decorator profile by its MongoDB ObjectId, linked userId, email, or slug
 const getDecoratorById = async (req, res) => {
   try {
     const { id } = req.params;
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).send({ success: false, message: "Invalid decorator ID format" });
+    let query = {};
+    if (ObjectId.isValid(id)) {
+      query = { $or: [{ _id: new ObjectId(id) }, { userId: new ObjectId(id) }] };
+    } else {
+      query = {
+        $or: [
+          { slug: id },
+          { "contactInfo.email": id },
+          { email: id },
+          { businessName: id },
+        ],
+      };
     }
 
-    const decorator = await decoratorCollection.findOne({ _id: new ObjectId(id) });
+    const decorator = await decoratorCollection.findOne(query);
     if (!decorator) {
       return res.status(404).send({ success: false, message: "Decorator not found" });
     }
@@ -148,7 +158,7 @@ const getDecoratorById = async (req, res) => {
   } catch (error) {
     res.status(500).send({
       success: false,
-      message: "Error fetching decorator by ID",
+      message: "Error fetching decorator",
       error: error.message,
     });
   }
@@ -161,12 +171,10 @@ const getMyDecoratorProfile = async (req, res) => {
     const email = req.decoded_email;
     const user = await userCollection.findOne({ email });
 
-    if (!user) {
-      return res.status(404).send({ success: false, message: "User not found" });
+    let decorator = null;
+    if (user) {
+      decorator = await decoratorCollection.findOne({ userId: user._id });
     }
-
-    // Try finding by userId first, then fallback to contactInfo.email or email
-    let decorator = await decoratorCollection.findOne({ userId: user._id });
     if (!decorator) {
       decorator = await decoratorCollection.findOne({
         $or: [{ "contactInfo.email": email }, { email }],

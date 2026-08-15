@@ -118,7 +118,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b88000068"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000001"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000004"),
-    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000004"),
+    "assignedAgentId": null,
     "serviceSnapshot": {
       "title": "Custom Neon Signs & Marquee Letter Rental - DreamCraft",
       "category": "Lighting, FX & Rentals",
@@ -140,11 +140,11 @@ const bookingsData = [
       "discountAmount": 680,
       "serviceTax": 391,
       "grandTotal": 8211,
-      "paidAmount": 4106,
-      "dueAmount": 4105
+      "paidAmount": 0,
+      "dueAmount": 8211
     },
-    "status": "preparing",
-    "paymentStatus": "partially_paid",
+    "status": "pending",
+    "paymentStatus": "unpaid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -180,7 +180,7 @@ const bookingsData = [
       "paidAmount": 7875,
       "dueAmount": 7875
     },
-    "status": "on_the_way",
+    "status": "preparing",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -217,7 +217,7 @@ const bookingsData = [
       "paidAmount": 21000,
       "dueAmount": 21000
     },
-    "status": "in_progress",
+    "status": "on_the_way",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -251,11 +251,11 @@ const bookingsData = [
       "discountAmount": 1760,
       "serviceTax": 1012,
       "grandTotal": 21252,
-      "paidAmount": 0,
-      "dueAmount": 21252
+      "paidAmount": 10626,
+      "dueAmount": 10626
     },
-    "status": "accepted",
-    "paymentStatus": "unpaid",
+    "status": "in_progress",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -266,7 +266,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b8800006c"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000002"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000008"),
-    "assignedAgentId": null,
+    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000008"),
     "serviceSnapshot": {
       "title": "Romantic Engagement & Ring Ceremony Decor - Royal",
       "category": "Wedding & Pre-Wedding",
@@ -288,11 +288,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 1200,
       "grandTotal": 25200,
-      "paidAmount": 0,
-      "dueAmount": 25200
+      "paidAmount": 7560,
+      "dueAmount": 17640
     },
-    "status": "pending",
-    "paymentStatus": "unpaid",
+    "status": "accepted",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -362,8 +362,8 @@ const bookingsData = [
       "discountAmount": 2080,
       "serviceTax": 1196,
       "grandTotal": 25116,
-      "paidAmount": 0,
-      "dueAmount": 25116
+      "paidAmount": 25116,
+      "dueAmount": 0
     },
     "status": "rejected",
     "paymentStatus": "refunded",
@@ -488,7 +488,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b88000072"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000003"),
     "serviceId": new ObjectId("66be18a3f2c4a91b8800000e"),
-    "assignedAgentId": new ObjectId("66be18a4f2c4a91b8800000a"),
+    "assignedAgentId": null,
     "serviceSnapshot": {
       "title": "Housewarming & Family Get-Together Decor - Bloom",
       "category": "Baby Shower & Family Gatherings",
@@ -510,11 +510,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 650,
       "grandTotal": 13650,
-      "paidAmount": 6825,
-      "dueAmount": 6825
+      "paidAmount": 0,
+      "dueAmount": 13650
     },
-    "status": "preparing",
-    "paymentStatus": "partially_paid",
+    "status": "pending",
+    "paymentStatus": "unpaid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -550,7 +550,7 @@ const bookingsData = [
       "paidAmount": 7875,
       "dueAmount": 7875
     },
-    "status": "on_the_way",
+    "status": "preparing",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -587,7 +587,7 @@ const bookingsData = [
       "paidAmount": 8211,
       "dueAmount": 8211
     },
-    "status": "in_progress",
+    "status": "on_the_way",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -621,11 +621,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 850,
       "grandTotal": 17850,
-      "paidAmount": 0,
-      "dueAmount": 17850
+      "paidAmount": 8925,
+      "dueAmount": 8925
     },
-    "status": "accepted",
-    "paymentStatus": "unpaid",
+    "status": "in_progress",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -661,7 +661,7 @@ const bookingsData = [
       "paidAmount": 0,
       "dueAmount": 19950
     },
-    "status": "pending",
+    "status": "in_draft",
     "paymentStatus": "unpaid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -673,7 +673,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b88000077"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000005"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000013"),
-    "assignedAgentId": null,
+    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000013"),
     "serviceSnapshot": {
       "title": "Executive Conference & Seminar Staging - Elite",
       "category": "Corporate & Official Events",
@@ -695,11 +695,11 @@ const bookingsData = [
       "discountAmount": 2640,
       "serviceTax": 1518,
       "grandTotal": 31878,
-      "paidAmount": 0,
-      "dueAmount": 31878
+      "paidAmount": 9563,
+      "dueAmount": 22315
     },
-    "status": "in_draft",
-    "paymentStatus": "unpaid",
+    "status": "accepted",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -732,8 +732,8 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 1850,
       "grandTotal": 38850,
-      "paidAmount": 0,
-      "dueAmount": 38850
+      "paidAmount": 38850,
+      "dueAmount": 0
     },
     "status": "rejected",
     "paymentStatus": "refunded",
@@ -784,7 +784,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b88000065"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000005"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000016"),
-    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000012"),
+    "assignedAgentId": null,
     "serviceSnapshot": {
       "title": "Custom Neon Signs & Marquee Letter Rental - Elite",
       "category": "Lighting, FX & Rentals",
@@ -806,11 +806,11 @@ const bookingsData = [
       "discountAmount": 680,
       "serviceTax": 391,
       "grandTotal": 8211,
-      "paidAmount": 8211,
-      "dueAmount": 0
+      "paidAmount": 0,
+      "dueAmount": 8211
     },
-    "status": "completed",
-    "paymentStatus": "paid",
+    "status": "pending",
+    "paymentStatus": "unpaid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -843,11 +843,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 700,
       "grandTotal": 14700,
-      "paidAmount": 5880,
-      "dueAmount": 8820
+      "paidAmount": 14700,
+      "dueAmount": 0
     },
-    "status": "advance_paid",
-    "paymentStatus": "partially_paid",
+    "status": "completed",
+    "paymentStatus": "paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -880,10 +880,10 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 950,
       "grandTotal": 19950,
-      "paidAmount": 9975,
-      "dueAmount": 9975
+      "paidAmount": 7980,
+      "dueAmount": 11970
     },
-    "status": "preparing",
+    "status": "advance_paid",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -920,7 +920,7 @@ const bookingsData = [
       "paidAmount": 4830,
       "dueAmount": 4830
     },
-    "status": "on_the_way",
+    "status": "preparing",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -957,7 +957,7 @@ const bookingsData = [
       "paidAmount": 6300,
       "dueAmount": 6300
     },
-    "status": "in_progress",
+    "status": "on_the_way",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -969,7 +969,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b8800006a"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000006"),
     "serviceId": new ObjectId("66be18a3f2c4a91b8800001b"),
-    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000017"),
+    "assignedAgentId": null,
     "serviceSnapshot": {
       "title": "Adult Milestone Birthday & Glam Gala - Cozy",
       "category": "Birthday & Anniversary",
@@ -994,7 +994,7 @@ const bookingsData = [
       "paidAmount": 0,
       "dueAmount": 19950
     },
-    "status": "accepted",
+    "status": "in_draft",
     "paymentStatus": "unpaid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -1006,7 +1006,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b8800006b"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000006"),
     "serviceId": new ObjectId("66be18a3f2c4a91b8800001c"),
-    "assignedAgentId": null,
+    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000018"),
     "serviceSnapshot": {
       "title": "Romantic Anniversary & Candlelight Dining - Cozy",
       "category": "Birthday & Anniversary",
@@ -1028,11 +1028,11 @@ const bookingsData = [
       "discountAmount": 1120,
       "serviceTax": 644,
       "grandTotal": 13524,
-      "paidAmount": 0,
-      "dueAmount": 13524
+      "paidAmount": 6762,
+      "dueAmount": 6762
     },
-    "status": "pending",
-    "paymentStatus": "unpaid",
+    "status": "in_progress",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -1043,7 +1043,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b8800006c"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000007"),
     "serviceId": new ObjectId("66be18a3f2c4a91b8800001d"),
-    "assignedAgentId": null,
+    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000019"),
     "serviceSnapshot": {
       "title": "Custom Neon Signs & Marquee Letter Rental - Lumina",
       "category": "Lighting, FX & Rentals",
@@ -1065,11 +1065,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 425,
       "grandTotal": 8925,
-      "paidAmount": 0,
-      "dueAmount": 8925
+      "paidAmount": 2678,
+      "dueAmount": 6247
     },
-    "status": "in_draft",
-    "paymentStatus": "unpaid",
+    "status": "accepted",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -1102,8 +1102,8 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 700,
       "grandTotal": 14700,
-      "paidAmount": 0,
-      "dueAmount": 14700
+      "paidAmount": 14700,
+      "dueAmount": 0
     },
     "status": "rejected",
     "paymentStatus": "refunded",
@@ -1154,7 +1154,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b8800006f"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000007"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000020"),
-    "assignedAgentId": new ObjectId("66be18a4f2c4a91b8800001c"),
+    "assignedAgentId": null,
     "serviceSnapshot": {
       "title": "360 Video Booth & Instant Photo Booth - Lumina",
       "category": "Lighting, FX & Rentals",
@@ -1176,11 +1176,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 1000,
       "grandTotal": 21000,
-      "paidAmount": 21000,
-      "dueAmount": 0
+      "paidAmount": 0,
+      "dueAmount": 21000
     },
-    "status": "completed",
-    "paymentStatus": "paid",
+    "status": "pending",
+    "paymentStatus": "unpaid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -1213,11 +1213,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 1650,
       "grandTotal": 34650,
-      "paidAmount": 13860,
-      "dueAmount": 20790
+      "paidAmount": 34650,
+      "dueAmount": 0
     },
-    "status": "advance_paid",
-    "paymentStatus": "partially_paid",
+    "status": "completed",
+    "paymentStatus": "paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -1250,10 +1250,10 @@ const bookingsData = [
       "discountAmount": 3200,
       "serviceTax": 1840,
       "grandTotal": 38640,
-      "paidAmount": 19320,
-      "dueAmount": 19320
+      "paidAmount": 15456,
+      "dueAmount": 23184
     },
-    "status": "preparing",
+    "status": "advance_paid",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -1290,7 +1290,7 @@ const bookingsData = [
       "paidAmount": 14700,
       "dueAmount": 14700
     },
-    "status": "on_the_way",
+    "status": "preparing",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -1327,7 +1327,7 @@ const bookingsData = [
       "paidAmount": 12600,
       "dueAmount": 12600
     },
-    "status": "in_progress",
+    "status": "on_the_way",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -1339,7 +1339,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b88000074"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000008"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000026"),
-    "assignedAgentId": new ObjectId("66be18a4f2c4a91b8800001d"),
+    "assignedAgentId": null,
     "serviceSnapshot": {
       "title": "Akika & Naming Ceremony Stage - Utsab",
       "category": "Baby Shower & Family Gatherings",
@@ -1364,7 +1364,7 @@ const bookingsData = [
       "paidAmount": 0,
       "dueAmount": 18354
     },
-    "status": "accepted",
+    "status": "in_draft",
     "paymentStatus": "unpaid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -1376,7 +1376,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b88000075"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000008"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000027"),
-    "assignedAgentId": null,
+    "assignedAgentId": new ObjectId("66be18a4f2c4a91b8800001e"),
     "serviceSnapshot": {
       "title": "Religious & Cultural Festival Pavilion - Utsab",
       "category": "Baby Shower & Family Gatherings",
@@ -1398,11 +1398,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 1500,
       "grandTotal": 31500,
-      "paidAmount": 0,
-      "dueAmount": 31500
+      "paidAmount": 15750,
+      "dueAmount": 15750
     },
-    "status": "pending",
-    "paymentStatus": "unpaid",
+    "status": "in_progress",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -1413,7 +1413,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b88000076"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000009"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000028"),
-    "assignedAgentId": null,
+    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000023"),
     "serviceSnapshot": {
       "title": "Kids Themed Fantasy Birthday Setup - Pastel",
       "category": "Birthday & Anniversary",
@@ -1435,11 +1435,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 750,
       "grandTotal": 15750,
-      "paidAmount": 0,
-      "dueAmount": 15750
+      "paidAmount": 4725,
+      "dueAmount": 11025
     },
-    "status": "in_draft",
-    "paymentStatus": "unpaid",
+    "status": "accepted",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -1472,8 +1472,8 @@ const bookingsData = [
       "discountAmount": 1120,
       "serviceTax": 644,
       "grandTotal": 13524,
-      "paidAmount": 0,
-      "dueAmount": 13524
+      "paidAmount": 13524,
+      "dueAmount": 0
     },
     "status": "rejected",
     "paymentStatus": "refunded",
@@ -1524,7 +1524,7 @@ const bookingsData = [
     "customerId": new ObjectId("6a7f2e0aaefae1aa7d90185b"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000009"),
     "serviceId": new ObjectId("66be18a3f2c4a91b8800002b"),
-    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000022"),
+    "assignedAgentId": null,
     "serviceSnapshot": {
       "title": "Akika & Naming Ceremony Stage - Pastel",
       "category": "Baby Shower & Family Gatherings",
@@ -1546,11 +1546,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 950,
       "grandTotal": 19950,
-      "paidAmount": 19950,
-      "dueAmount": 0
+      "paidAmount": 0,
+      "dueAmount": 19950
     },
-    "status": "completed",
-    "paymentStatus": "paid",
+    "status": "pending",
+    "paymentStatus": "unpaid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -1583,11 +1583,11 @@ const bookingsData = [
       "discountAmount": 1520,
       "serviceTax": 874,
       "grandTotal": 18354,
-      "paidAmount": 7342,
-      "dueAmount": 11012
+      "paidAmount": 18354,
+      "dueAmount": 0
     },
-    "status": "advance_paid",
-    "paymentStatus": "partially_paid",
+    "status": "completed",
+    "paymentStatus": "paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -1620,10 +1620,10 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 2000,
       "grandTotal": 42000,
-      "paidAmount": 21000,
-      "dueAmount": 21000
+      "paidAmount": 16800,
+      "dueAmount": 25200
     },
-    "status": "preparing",
+    "status": "advance_paid",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -1660,7 +1660,7 @@ const bookingsData = [
       "paidAmount": 14700,
       "dueAmount": 14700
     },
-    "status": "on_the_way",
+    "status": "preparing",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -1697,7 +1697,7 @@ const bookingsData = [
       "paidAmount": 15939,
       "dueAmount": 15939
     },
-    "status": "in_progress",
+    "status": "on_the_way",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -1709,7 +1709,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b88000069"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b8800000a"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000030"),
-    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000027"),
+    "assignedAgentId": null,
     "serviceSnapshot": {
       "title": "Corporate Dinner & Executive Meetup Decor - Padma",
       "category": "Corporate & Official Events",
@@ -1734,7 +1734,7 @@ const bookingsData = [
       "paidAmount": 0,
       "dueAmount": 27300
     },
-    "status": "accepted",
+    "status": "in_draft",
     "paymentStatus": "unpaid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -1746,7 +1746,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b8800006a"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b8800000b"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000031"),
-    "assignedAgentId": null,
+    "assignedAgentId": new ObjectId("66be18a4f2c4a91b8800002c"),
     "serviceSnapshot": {
       "title": "Royal Wedding Reception Stage Setup - Sundarban",
       "category": "Wedding & Pre-Wedding",
@@ -1768,11 +1768,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 2000,
       "grandTotal": 42000,
-      "paidAmount": 0,
-      "dueAmount": 42000
+      "paidAmount": 21000,
+      "dueAmount": 21000
     },
-    "status": "pending",
-    "paymentStatus": "unpaid",
+    "status": "in_progress",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -1783,7 +1783,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b8800006b"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b8800000b"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000032"),
-    "assignedAgentId": null,
+    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000029"),
     "serviceSnapshot": {
       "title": "Bride & Groom Grand Entry Pathway - Sundarban",
       "category": "Wedding & Pre-Wedding",
@@ -1805,11 +1805,11 @@ const bookingsData = [
       "discountAmount": 1760,
       "serviceTax": 1012,
       "grandTotal": 21252,
-      "paidAmount": 0,
-      "dueAmount": 21252
+      "paidAmount": 6376,
+      "dueAmount": 14876
     },
-    "status": "in_draft",
-    "paymentStatus": "unpaid",
+    "status": "accepted",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -1842,8 +1842,8 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 950,
       "grandTotal": 19950,
-      "paidAmount": 0,
-      "dueAmount": 19950
+      "paidAmount": 19950,
+      "dueAmount": 0
     },
     "status": "rejected",
     "paymentStatus": "refunded",
@@ -2005,7 +2005,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b88000071"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b8800000c"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000038"),
-    "assignedAgentId": new ObjectId("66be18a4f2c4a91b8800002f"),
+    "assignedAgentId": null,
     "serviceSnapshot": {
       "title": "Housewarming & Family Get-Together Decor - Kirtankhola",
       "category": "Baby Shower & Family Gatherings",
@@ -2027,11 +2027,11 @@ const bookingsData = [
       "discountAmount": 1040,
       "serviceTax": 598,
       "grandTotal": 12558,
-      "paidAmount": 6279,
-      "dueAmount": 6279
+      "paidAmount": 0,
+      "dueAmount": 12558
     },
-    "status": "on_the_way",
-    "paymentStatus": "partially_paid",
+    "status": "pending",
+    "paymentStatus": "unpaid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -2067,7 +2067,7 @@ const bookingsData = [
       "paidAmount": 14700,
       "dueAmount": 14700
     },
-    "status": "in_progress",
+    "status": "on_the_way",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -2101,11 +2101,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 1100,
       "grandTotal": 23100,
-      "paidAmount": 0,
-      "dueAmount": 23100
+      "paidAmount": 11550,
+      "dueAmount": 11550
     },
-    "status": "accepted",
-    "paymentStatus": "unpaid",
+    "status": "in_progress",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -2116,7 +2116,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b88000074"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b8800000d"),
     "serviceId": new ObjectId("66be18a3f2c4a91b8800003b"),
-    "assignedAgentId": null,
+    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000032"),
     "serviceSnapshot": {
       "title": "Product Launch & Trade Expo Pavilion - Rangpur",
       "category": "Corporate & Official Events",
@@ -2138,11 +2138,11 @@ const bookingsData = [
       "discountAmount": 3360,
       "serviceTax": 1932,
       "grandTotal": 40572,
-      "paidAmount": 0,
-      "dueAmount": 40572
+      "paidAmount": 12172,
+      "dueAmount": 28400
     },
-    "status": "pending",
-    "paymentStatus": "unpaid",
+    "status": "accepted",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -2212,8 +2212,8 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 850,
       "grandTotal": 17850,
-      "paidAmount": 0,
-      "dueAmount": 17850
+      "paidAmount": 17850,
+      "dueAmount": 0
     },
     "status": "rejected",
     "paymentStatus": "refunded",
@@ -2471,11 +2471,11 @@ const bookingsData = [
       "discountAmount": 1920,
       "serviceTax": 1104,
       "grandTotal": 23184,
-      "paidAmount": 0,
-      "dueAmount": 23184
+      "paidAmount": 6955,
+      "dueAmount": 16229
     },
     "status": "accepted",
-    "paymentStatus": "unpaid",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -2486,7 +2486,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b88000069"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b8800000f"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000045"),
-    "assignedAgentId": null,
+    "assignedAgentId": new ObjectId("66be18a4f2c4a91b8800003c"),
     "serviceSnapshot": {
       "title": "Custom Neon Signs & Marquee Letter Rental - Moynamoti",
       "category": "Lighting, FX & Rentals",
@@ -2508,12 +2508,12 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 425,
       "grandTotal": 8925,
-      "paidAmount": 0,
-      "dueAmount": 8925
+      "paidAmount": 8925,
+      "dueAmount": 0
     },
-    "status": "pending",
-    "paymentStatus": "unpaid",
-    "cancellationReason": null,
+    "status": "rejected",
+    "paymentStatus": "refunded",
+    "cancellationReason": "Client requested cancellation due to venue schedule change.",
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
   },
@@ -2523,7 +2523,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b8800006a"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b8800000f"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000046"),
-    "assignedAgentId": null,
+    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000039"),
     "serviceSnapshot": {
       "title": "Special Effects - Cold Pyro & Dry Ice Low Fog - Moynamoti",
       "category": "Lighting, FX & Rentals",
@@ -2545,11 +2545,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 750,
       "grandTotal": 15750,
-      "paidAmount": 0,
-      "dueAmount": 15750
+      "paidAmount": 15750,
+      "dueAmount": 0
     },
-    "status": "in_draft",
-    "paymentStatus": "unpaid",
+    "status": "fully_paid",
+    "paymentStatus": "paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -2582,12 +2582,12 @@ const bookingsData = [
       "discountAmount": 2640,
       "serviceTax": 1518,
       "grandTotal": 31878,
-      "paidAmount": 0,
-      "dueAmount": 31878
+      "paidAmount": 31878,
+      "dueAmount": 0
     },
-    "status": "rejected",
-    "paymentStatus": "refunded",
-    "cancellationReason": "Client requested cancellation due to venue schedule change.",
+    "status": "completed",
+    "paymentStatus": "paid",
+    "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
   },
@@ -2619,11 +2619,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 1850,
       "grandTotal": 38850,
-      "paidAmount": 38850,
-      "dueAmount": 0
+      "paidAmount": 15540,
+      "dueAmount": 23310
     },
-    "status": "fully_paid",
-    "paymentStatus": "paid",
+    "status": "advance_paid",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -2656,11 +2656,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 2100,
       "grandTotal": 44100,
-      "paidAmount": 44100,
-      "dueAmount": 0
+      "paidAmount": 22050,
+      "dueAmount": 22050
     },
-    "status": "completed",
-    "paymentStatus": "paid",
+    "status": "preparing",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -2671,7 +2671,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b8800006e"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000010"),
     "serviceId": new ObjectId("66be18a3f2c4a91b8800004a"),
-    "assignedAgentId": new ObjectId("66be18a4f2c4a91b8800003d"),
+    "assignedAgentId": null,
     "serviceSnapshot": {
       "title": "Kids Themed Fantasy Birthday Setup - Urban",
       "category": "Birthday & Anniversary",
@@ -2693,11 +2693,11 @@ const bookingsData = [
       "discountAmount": 1200,
       "serviceTax": 690,
       "grandTotal": 14490,
-      "paidAmount": 5796,
-      "dueAmount": 8694
+      "paidAmount": 0,
+      "dueAmount": 14490
     },
-    "status": "advance_paid",
-    "paymentStatus": "partially_paid",
+    "status": "pending",
+    "paymentStatus": "unpaid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -2733,7 +2733,7 @@ const bookingsData = [
       "paidAmount": 9975,
       "dueAmount": 9975
     },
-    "status": "preparing",
+    "status": "on_the_way",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -2770,7 +2770,7 @@ const bookingsData = [
       "paidAmount": 21000,
       "dueAmount": 21000
     },
-    "status": "on_the_way",
+    "status": "in_progress",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -2804,10 +2804,10 @@ const bookingsData = [
       "discountAmount": 2240,
       "serviceTax": 1288,
       "grandTotal": 27048,
-      "paidAmount": 13524,
-      "dueAmount": 13524
+      "paidAmount": 8114,
+      "dueAmount": 18934
     },
-    "status": "in_progress",
+    "status": "accepted",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -2841,12 +2841,12 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 1100,
       "grandTotal": 23100,
-      "paidAmount": 0,
-      "dueAmount": 23100
+      "paidAmount": 23100,
+      "dueAmount": 0
     },
-    "status": "accepted",
-    "paymentStatus": "unpaid",
-    "cancellationReason": null,
+    "status": "rejected",
+    "paymentStatus": "refunded",
+    "cancellationReason": "Client requested cancellation due to venue schedule change.",
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
   },
@@ -2881,7 +2881,7 @@ const bookingsData = [
       "paidAmount": 0,
       "dueAmount": 8925
     },
-    "status": "pending",
+    "status": "in_draft",
     "paymentStatus": "unpaid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -2893,7 +2893,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b88000074"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000011"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000050"),
-    "assignedAgentId": null,
+    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000043"),
     "serviceSnapshot": {
       "title": "Spotlights & Ambient Event Lighting Setup - Velvet",
       "category": "Lighting, FX & Rentals",
@@ -2915,11 +2915,11 @@ const bookingsData = [
       "discountAmount": 1120,
       "serviceTax": 644,
       "grandTotal": 13524,
-      "paidAmount": 0,
-      "dueAmount": 13524
+      "paidAmount": 13524,
+      "dueAmount": 0
     },
-    "status": "in_draft",
-    "paymentStatus": "unpaid",
+    "status": "fully_paid",
+    "paymentStatus": "paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -2952,12 +2952,12 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 750,
       "grandTotal": 15750,
-      "paidAmount": 0,
-      "dueAmount": 15750
+      "paidAmount": 15750,
+      "dueAmount": 0
     },
-    "status": "rejected",
-    "paymentStatus": "refunded",
-    "cancellationReason": "Client requested cancellation due to venue schedule change.",
+    "status": "completed",
+    "paymentStatus": "paid",
+    "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
   },
@@ -2989,11 +2989,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 950,
       "grandTotal": 19950,
-      "paidAmount": 19950,
-      "dueAmount": 0
+      "paidAmount": 7980,
+      "dueAmount": 11970
     },
-    "status": "fully_paid",
-    "paymentStatus": "paid",
+    "status": "advance_paid",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -3026,11 +3026,11 @@ const bookingsData = [
       "discountAmount": 1360,
       "serviceTax": 782,
       "grandTotal": 16422,
-      "paidAmount": 16422,
-      "dueAmount": 0
+      "paidAmount": 8211,
+      "dueAmount": 8211
     },
-    "status": "completed",
-    "paymentStatus": "paid",
+    "status": "preparing",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -3041,7 +3041,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b88000078"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000012"),
     "serviceId": new ObjectId("66be18a3f2c4a91b88000055"),
-    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000047"),
+    "assignedAgentId": null,
     "serviceSnapshot": {
       "title": "Drawing Room & Balcony Aesthetic Makeover - Balloon",
       "category": "Home & Rooftop Intimate Setups",
@@ -3063,11 +3063,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 500,
       "grandTotal": 10500,
-      "paidAmount": 4200,
-      "dueAmount": 6300
+      "paidAmount": 0,
+      "dueAmount": 10500
     },
-    "status": "advance_paid",
-    "paymentStatus": "partially_paid",
+    "status": "pending",
+    "paymentStatus": "unpaid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -3103,7 +3103,7 @@ const bookingsData = [
       "paidAmount": 6300,
       "dueAmount": 6300
     },
-    "status": "preparing",
+    "status": "on_the_way",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -3140,7 +3140,7 @@ const bookingsData = [
       "paidAmount": 4106,
       "dueAmount": 4105
     },
-    "status": "on_the_way",
+    "status": "in_progress",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -3174,10 +3174,10 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 700,
       "grandTotal": 14700,
-      "paidAmount": 7350,
-      "dueAmount": 7350
+      "paidAmount": 4410,
+      "dueAmount": 10290
     },
-    "status": "in_progress",
+    "status": "accepted",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -3211,12 +3211,12 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 750,
       "grandTotal": 15750,
-      "paidAmount": 0,
-      "dueAmount": 15750
+      "paidAmount": 15750,
+      "dueAmount": 0
     },
-    "status": "accepted",
-    "paymentStatus": "unpaid",
-    "cancellationReason": null,
+    "status": "rejected",
+    "paymentStatus": "refunded",
+    "cancellationReason": "Client requested cancellation due to venue schedule change.",
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
   },
@@ -3226,7 +3226,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b88000068"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000013"),
     "serviceId": new ObjectId("66be18a3f2c4a91b8800005a"),
-    "assignedAgentId": null,
+    "assignedAgentId": new ObjectId("66be18a4f2c4a91b8800004c"),
     "serviceSnapshot": {
       "title": "360 Video Booth & Instant Photo Booth - Nocturne",
       "category": "Lighting, FX & Rentals",
@@ -3248,11 +3248,11 @@ const bookingsData = [
       "discountAmount": 1600,
       "serviceTax": 920,
       "grandTotal": 19320,
-      "paidAmount": 0,
-      "dueAmount": 19320
+      "paidAmount": 19320,
+      "dueAmount": 0
     },
-    "status": "pending",
-    "paymentStatus": "unpaid",
+    "status": "fully_paid",
+    "paymentStatus": "paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -3263,7 +3263,7 @@ const bookingsData = [
     "customerId": new ObjectId("66be18a1f2c4a91b88000069"),
     "decoratorId": new ObjectId("66be18a2f2c4a91b88000013"),
     "serviceId": new ObjectId("66be18a3f2c4a91b8800005b"),
-    "assignedAgentId": null,
+    "assignedAgentId": new ObjectId("66be18a4f2c4a91b88000049"),
     "serviceSnapshot": {
       "title": "Executive Conference & Seminar Staging - Nocturne",
       "category": "Corporate & Official Events",
@@ -3285,11 +3285,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 1650,
       "grandTotal": 34650,
-      "paidAmount": 0,
-      "dueAmount": 34650
+      "paidAmount": 34650,
+      "dueAmount": 0
     },
-    "status": "in_draft",
-    "paymentStatus": "unpaid",
+    "status": "completed",
+    "paymentStatus": "paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -3322,12 +3322,12 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 1400,
       "grandTotal": 29400,
-      "paidAmount": 0,
-      "dueAmount": 29400
+      "paidAmount": 11760,
+      "dueAmount": 17640
     },
-    "status": "rejected",
-    "paymentStatus": "refunded",
-    "cancellationReason": "Client requested cancellation due to venue schedule change.",
+    "status": "advance_paid",
+    "paymentStatus": "partially_paid",
+    "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
   },
@@ -3359,11 +3359,11 @@ const bookingsData = [
       "discountAmount": 1760,
       "serviceTax": 1012,
       "grandTotal": 21252,
-      "paidAmount": 21252,
-      "dueAmount": 0
+      "paidAmount": 10626,
+      "dueAmount": 10626
     },
-    "status": "fully_paid",
-    "paymentStatus": "paid",
+    "status": "preparing",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -3396,11 +3396,11 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 1200,
       "grandTotal": 25200,
-      "paidAmount": 25200,
-      "dueAmount": 0
+      "paidAmount": 12600,
+      "dueAmount": 12600
     },
-    "status": "completed",
-    "paymentStatus": "paid",
+    "status": "on_the_way",
+    "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
     "updatedAt": new Date("2026-08-14T10:00:00.000Z")
@@ -3433,10 +3433,10 @@ const bookingsData = [
       "discountAmount": 0,
       "serviceTax": 950,
       "grandTotal": 19950,
-      "paidAmount": 7980,
-      "dueAmount": 11970
+      "paidAmount": 9975,
+      "dueAmount": 9975
     },
-    "status": "advance_paid",
+    "status": "in_progress",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
@@ -3470,10 +3470,10 @@ const bookingsData = [
       "discountAmount": 2400,
       "serviceTax": 1380,
       "grandTotal": 28980,
-      "paidAmount": 14490,
-      "dueAmount": 14490
+      "paidAmount": 8694,
+      "dueAmount": 20286
     },
-    "status": "preparing",
+    "status": "accepted",
     "paymentStatus": "partially_paid",
     "cancellationReason": null,
     "createdAt": new Date("2026-08-14T10:00:00.000Z"),
