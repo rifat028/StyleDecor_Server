@@ -5,7 +5,7 @@ const { verifyFbToken, verifyAdmin } = require("../middleware/authMiddleware");
 const serviceController = require("../controllers/serviceController");
 
 // ========== Service Endpoints ==========
-
+ 
 // 1. Static / Named Endpoints
 router.get("/latest", serviceController.getLatestServices);
 router.get("/toprated", serviceController.getTopRatedServices);
