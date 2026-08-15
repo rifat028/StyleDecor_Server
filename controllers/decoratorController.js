@@ -353,6 +353,8 @@ const updateDecorator = async (req, res) => {
     if (serviceAreas !== undefined) updateDoc.$set.serviceAreas = serviceAreas;
     if (categories !== undefined) updateDoc.$set.categories = categories;
     if (socialLinks !== undefined) updateDoc.$set.socialLinks = socialLinks;
+    if (req.body.status !== undefined) updateDoc.$set.status = req.body.status;
+    if (req.body.tradeLicenseNo !== undefined) updateDoc.$set["verification.tradeLicenseNo"] = req.body.tradeLicenseNo;
 
     const result = await decoratorCollection.updateOne(
       { _id: new ObjectId(id) },
