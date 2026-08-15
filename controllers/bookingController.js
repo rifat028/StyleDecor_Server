@@ -450,24 +450,30 @@ const updateBookingStatus = async (req, res) => {
     }
 
     const allowedStatuses = [
+      "in_draft",
+      "draft",
       "pending",
-      "confirmed",
+      "accepted",
+      "rejected",
+      "advance_paid",
+      "advance paid",
+      "preparing",
+      "on_the_way",
+      "on the way",
       "in_progress",
+      "inprogress",
       "completed",
+      "fully_paid",
+      "fully paid",
+      // Legacy compatibility
+      "confirmed",
       "cancelled",
-      // Legacy status support
-      "Assigned",
-      "Planning",
-      "Equipping",
-      "On Way",
-      "Setting up",
-      "Completed",
     ];
 
     if (!allowedStatuses.includes(status)) {
       return res.status(400).send({
         success: false,
-        message: "Invalid status value",
+        message: `Invalid status value. Allowed: ${allowedStatuses.join(", ")}`,
       });
     }
 
@@ -481,14 +487,20 @@ const updateBookingStatus = async (req, res) => {
       updatedAt: new Date(),
     };
 
-    if (status === "completed" || status === "Completed") {
-      updateDoc.completedAt = new Date();
+    if (status === "advance paid" || status === "advance_paid") {
+      updateDoc.paymentStatus = "partially_paid";
+    }
+
+    if (status === "fully paid" || status === "fully_paid") {
       updateDoc.paymentStatus = "paid";
       if (booking.pricingBreakdown) {
         updateDoc["pricingBreakdown.paidAmount"] = booking.pricingBreakdown.grandTotal;
         updateDoc["pricingBreakdown.dueAmount"] = 0;
       }
-      // Increment decorator completed events metric
+    }
+
+    if (status === "completed" || status === "Completed") {
+      updateDoc.completedAt = new Date();
       if (booking.decoratorId) {
         await decoratorCollection.updateOne(
           { _id: booking.decoratorId },
@@ -497,8 +509,8 @@ const updateBookingStatus = async (req, res) => {
       }
     }
 
-    if (status === "cancelled") {
-      updateDoc.cancellationReason = cancellationReason || "Cancelled by client/agency";
+    if (status === "rejected" || status === "cancelled") {
+      updateDoc.cancellationReason = cancellationReason || "Booking rejected or cancelled.";
     }
 
     await bookingCollection.updateOne(

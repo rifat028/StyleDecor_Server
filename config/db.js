@@ -1,4 +1,12 @@
 // ========== Imports ==========
+const dns = require("dns");
+try {
+  dns.setServers(["8.8.8.8", "8.8.4.4", "1.1.1.1"]);
+  if (dns.setDefaultResultOrder) dns.setDefaultResultOrder("ipv4first");
+} catch (dnsErr) {
+  // Ignore if custom DNS not allowed in environment
+}
+
 const { MongoClient, ServerApiVersion } = require("mongodb");
 require("dotenv").config();
 
