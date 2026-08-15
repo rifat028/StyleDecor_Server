@@ -6,10 +6,8 @@ const bookingController = require("../controllers/bookingController");
 
 // ========== Booking Endpoints ==========
 
-// 1. Static / Specific Named Routes
-router.get("/my-bookings", verifyFbToken, bookingController.getMyBookings);
-router.get("/user/:email", verifyFbToken, bookingController.getMyBookings);
-router.get("/client/:email", verifyFbToken, bookingController.getMyBookings);
+// 1. Specific Entity Lookup Routes
+router.get("/customer/:customerId", verifyFbToken, bookingController.getBookingsByCustomer);
 router.get("/decorator/:decoratorId", verifyFbToken, bookingController.getBookingsByDecorator);
 router.get("/agent/:agentId", verifyFbToken, bookingController.getBookingsByAgent);
 router.get("/id/:id", verifyFbToken, bookingController.getBookingById);
@@ -26,12 +24,7 @@ router.patch("/:id/status", verifyFbToken, bookingController.updateBookingStatus
 router.patch("/:id", verifyFbToken, bookingController.updateBookingInfo);
 router.delete("/:id", verifyFbToken, bookingController.deleteBooking);
 
-// 5. Fallback for Email Param (Backward Compatibility: GET /bookings/:email)
-router.get("/:email", verifyFbToken, (req, res, next) => {
-  if (req.params.email && req.params.email.includes("@")) {
-    return bookingController.getMyBookings(req, res);
-  }
-  return bookingController.getBookingById(req, res);
-});
+// 5. Lookup by Single Booking ID
+router.get("/:id", verifyFbToken, bookingController.getBookingById);
 
 module.exports = router;

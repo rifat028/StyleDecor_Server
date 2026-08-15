@@ -171,31 +171,34 @@ const getBookings = async (req, res) => {
   }
 };
 
-// ========== Get My Bookings (Customer) ==========
-const getMyBookings = async (req, res) => {
+// ========== Get Bookings by Customer ID ==========
+const getBookingsByCustomer = async (req, res) => {
   try {
-    const email = req.params.email || req.decoded_email;
-    const user = await userCollection.findOne({ email });
+    const { customerId } = req.params;
 
-    const query = {};
-    if (user) {
-      query.$or = [{ customerId: user._id }, { clientEmail: email }];
-    } else {
-      query.clientEmail = email;
+    if (!ObjectId.isValid(customerId)) {
+      return res.status(400).send({
+        success: false,
+        message: "Invalid customer ID format",
+      });
     }
 
     const rawBookings = await bookingCollection
-      .find(query)
-      .sort({ createdAt: -1, _id: -1 })
+      .find({ customerId: new ObjectId(customerId) })
+      .sort({ "eventDetails.eventDate": -1, createdAt: -1, _id: -1 })
       .toArray();
 
     const data = await enrichBookings(rawBookings);
 
-    res.send(data);
+    res.send({
+      success: true,
+      count: data.length,
+      data,
+    });
   } catch (error) {
     res.status(500).send({
       success: false,
-      message: "Error fetching my bookings",
+      message: "Error fetching customer bookings",
       error: error.message,
     });
   }
@@ -618,7 +621,7 @@ const deleteBooking = async (req, res) => {
 
 module.exports = {
   getBookings,
-  getMyBookings,
+  getBookingsByCustomer,
   getBookingsByDecorator,
   getBookingsByAgent,
   getBookingById,
