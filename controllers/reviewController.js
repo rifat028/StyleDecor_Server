@@ -1,68 +1,57 @@
 // ========== Imports ==========
 const { ObjectId } = require("mongodb");
-const { reviewCollection, bookingCollection, agentCollection, decoratorCollection, userCollection } = require("../models/collections");
+const {
+  reviewCollection,
+  bookingCollection,
+  agentCollection,
+  decoratorCollection,
+  userCollection,
+} = require("../models/collections");
 
-// ========== 1. Get Reviews for Decorator Agency ==========
-const getReviewsByDecorator = async (req, res) => {
+// ========== Helper: Recalculate Ratings for Decorator & Agent ==========
+const recalculateMetrics = async (decoratorId, agentId) => {
   try {
-    const { decoratorId } = req.params;
-    if (!ObjectId.isValid(decoratorId)) {
-      return res.status(400).send({ success: false, message: "Invalid decorator ID" });
+    if (decoratorId && ObjectId.isValid(decoratorId)) {
+      const decId = new ObjectId(decoratorId);
+      const decReviews = await reviewCollection.find({ decoratorId: decId, status: "published" }).toArray();
+      const count = decReviews.length;
+      const avg = count > 0 ? (decReviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / count).toFixed(1) : 5.0;
+      await decoratorCollection.updateOne(
+        { _id: decId },
+        { $set: { "metrics.rating": Number(avg), "metrics.reviewCount": count, updatedAt: new Date() } }
+      );
     }
 
-    const reviews = await reviewCollection
-      .find({
-        decoratorId: new ObjectId(decoratorId),
-        status: "published",
-      })
-      .sort({ createdAt: -1 })
-      .toArray();
-
-    res.send({
-      success: true,
-      count: reviews.length,
-      data: reviews,
-    });
-  } catch (error) {
-    res.status(500).send({
-      success: false,
-      message: "Error fetching reviews for decorator",
-      error: error.message,
-    });
+    if (agentId && ObjectId.isValid(agentId)) {
+      const agId = new ObjectId(agentId);
+      const agReviews = await reviewCollection.find({ agentId: agId, status: "published" }).toArray();
+      const count = agReviews.length;
+      const avg = count > 0 ? (agReviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / count).toFixed(1) : 5.0;
+      await agentCollection.updateOne(
+        { _id: agId },
+        { $set: { "metrics.rating": Number(avg), updatedAt: new Date() } }
+      );
+    }
+  } catch (err) {
+    console.warn("Warning: Error updating review metrics:", err.message);
   }
 };
 
-// ========== 2. Get Reviews for Field Agent ==========
-const getReviewsByAgent = async (req, res) => {
-  try {
-    const { agentId } = req.params;
-    if (!ObjectId.isValid(agentId)) {
-      return res.status(400).send({ success: false, message: "Invalid agent ID" });
-    }
-
-    const reviews = await reviewCollection
-      .find({
-        agentId: new ObjectId(agentId),
-        status: "published",
-      })
-      .sort({ createdAt: -1 })
-      .toArray();
-
-    res.send({
-      success: true,
-      count: reviews.length,
-      data: reviews,
-    });
-  } catch (error) {
-    res.status(500).send({
-      success: false,
-      message: "Error fetching reviews for agent",
-      error: error.message,
-    });
-  }
+// Helper: Calculate Distribution Breakdown
+const calculateDistribution = (reviews) => {
+  const dist = { 5: 0, 4: 0, 3: 0, 2: 0, 1: 0 };
+  reviews.forEach((r) => {
+    const star = Math.min(5, Math.max(1, Math.round(Number(r.rating) || 5)));
+    dist[star] = (dist[star] || 0) + 1;
+  });
+  return dist;
 };
 
-// ========== 3. Get Reviews for Service ==========
+// =========================================================================
+// ============================= 1. PUBLIC APIS ============================
+// =========================================================================
+
+// 1.1 Fetch Service Reviews
 const getReviewsByService = async (req, res) => {
   try {
     const { serviceId } = req.params;
@@ -78,9 +67,17 @@ const getReviewsByService = async (req, res) => {
       .sort({ createdAt: -1 })
       .toArray();
 
+    const totalCount = reviews.length;
+    const averageRating =
+      totalCount > 0
+        ? Number((reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / totalCount).toFixed(1))
+        : 5.0;
+
     res.send({
       success: true,
-      count: reviews.length,
+      count: totalCount,
+      aggregateRating: averageRating,
+      ratingDistribution: calculateDistribution(reviews),
       data: reviews,
     });
   } catch (error) {
@@ -92,47 +89,76 @@ const getReviewsByService = async (req, res) => {
   }
 };
 
-// ========== 4. Get All Reviews (Admin & Global Filter) ==========
-const getReviews = async (req, res) => {
+// 1.2 Fetch Decorator Reviews
+const getReviewsByDecorator = async (req, res) => {
   try {
-    const { decoratorId, agentId, serviceId, status = "published", page = 1, limit = 20 } = req.query;
-    const query = {};
+    const { decoratorId } = req.params;
+    if (!ObjectId.isValid(decoratorId)) {
+      return res.status(400).send({ success: false, message: "Invalid decorator ID" });
+    }
 
-    if (status && status !== "all") query.status = status;
-    if (decoratorId && ObjectId.isValid(decoratorId)) query.decoratorId = new ObjectId(decoratorId);
-    if (agentId && ObjectId.isValid(agentId)) query.agentId = new ObjectId(agentId);
-    if (serviceId && ObjectId.isValid(serviceId)) query.serviceId = new ObjectId(serviceId);
-
-    const pageNum = Math.max(1, parseInt(page, 10));
-    const limitNum = Math.max(1, parseInt(limit, 10));
-    const skip = (pageNum - 1) * limitNum;
-
-    const totalCount = await reviewCollection.countDocuments(query);
     const reviews = await reviewCollection
-      .find(query)
+      .find({
+        decoratorId: new ObjectId(decoratorId),
+        status: "published",
+      })
       .sort({ createdAt: -1 })
-      .skip(skip)
-      .limit(limitNum)
       .toArray();
+
+    const totalCount = reviews.length;
+    const averageRating =
+      totalCount > 0
+        ? Number((reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / totalCount).toFixed(1))
+        : 5.0;
 
     res.send({
       success: true,
-      totalCount,
-      page: pageNum,
-      limit: limitNum,
-      totalPages: Math.max(1, Math.ceil(totalCount / limitNum)),
+      count: totalCount,
+      aggregateRating: averageRating,
+      ratingDistribution: calculateDistribution(reviews),
       data: reviews,
     });
   } catch (error) {
     res.status(500).send({
       success: false,
-      message: "Error fetching reviews",
+      message: "Error fetching reviews for decorator",
       error: error.message,
     });
   }
 };
 
-// ========== 5. Create Review (Customer / Decorator) ==========
+// 1.3 Fetch Featured Reviews (for Landing Page Testimonials)
+const getFeaturedReviews = async (req, res) => {
+  try {
+    const { limit = 8 } = req.query;
+    const reviews = await reviewCollection
+      .find({
+        status: "published",
+        rating: { $gte: 4 },
+      })
+      .sort({ rating: -1, createdAt: -1 })
+      .limit(Number(limit))
+      .toArray();
+
+    res.send({
+      success: true,
+      count: reviews.length,
+      data: reviews,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error fetching featured reviews",
+      error: error.message,
+    });
+  }
+};
+
+// =========================================================================
+// ============================ 2. CUSTOMER APIS ===========================
+// =========================================================================
+
+// 2.1 Create Review (for Completed / Verified Booking)
 const createReview = async (req, res) => {
   try {
     const {
@@ -153,18 +179,39 @@ const createReview = async (req, res) => {
       linkedBooking = await bookingCollection.findOne({ _id: new ObjectId(bookingId) });
     }
 
-    let finalDecoratorId = decoratorId && ObjectId.isValid(decoratorId) ? new ObjectId(decoratorId) : (linkedBooking?.decoratorId || null);
-    let finalServiceId = serviceId && ObjectId.isValid(serviceId) ? new ObjectId(serviceId) : (linkedBooking?.serviceId || null);
-    let finalAgentId = agentId && ObjectId.isValid(agentId) ? new ObjectId(agentId) : (linkedBooking?.assignedAgentId || null);
-    let agentName = "Field Specialist";
+    if (!linkedBooking && (!decoratorId || !ObjectId.isValid(decoratorId))) {
+      return res.status(400).send({
+        success: false,
+        message: "Valid booking ID or decorator ID is required to submit a review",
+      });
+    }
 
+    // Prevent duplicate review for the same booking by the same user
+    if (linkedBooking) {
+      const existing = await reviewCollection.findOne({
+        bookingId: linkedBooking._id,
+        $or: [{ customerId: user?._id }, { customerEmail: email }],
+      });
+      if (existing) {
+        return res.status(400).send({
+          success: false,
+          message: "You have already reviewed this booking. You can edit your existing review instead.",
+        });
+      }
+    }
+
+    const finalDecoratorId = linkedBooking?.decoratorId || new ObjectId(decoratorId);
+    const finalServiceId = linkedBooking?.serviceId || (serviceId && ObjectId.isValid(serviceId) ? new ObjectId(serviceId) : null);
+    const finalAgentId = linkedBooking?.assignedAgentId || (agentId && ObjectId.isValid(agentId) ? new ObjectId(agentId) : null);
+
+    let agentName = "Field Specialist";
     if (finalAgentId) {
       const agentDoc = await agentCollection.findOne({ _id: finalAgentId });
       if (agentDoc) agentName = agentDoc.name;
     }
 
     const newReview = {
-      bookingId: linkedBooking ? linkedBooking._id : (bookingId && ObjectId.isValid(bookingId) ? new ObjectId(bookingId) : null),
+      bookingId: linkedBooking ? linkedBooking._id : null,
       customerId: user ? user._id : null,
       customerName: user?.name || "Valued Client",
       customerEmail: email,
@@ -173,8 +220,8 @@ const createReview = async (req, res) => {
       serviceId: finalServiceId,
       agentId: finalAgentId,
       agentName: agentName,
-      rating: Number(rating) || 5,
-      comment: comment || "Excellent setup and professional coordination!",
+      rating: Math.min(5, Math.max(1, Number(rating) || 5)),
+      comment: comment?.trim() || "Excellent setup and professional coordination!",
       images: Array.isArray(images) ? images : [],
       vendorReply: null,
       isVerifiedBooking: Boolean(linkedBooking),
@@ -185,29 +232,12 @@ const createReview = async (req, res) => {
 
     const result = await reviewCollection.insertOne(newReview);
 
-    // Recalculate Decorator Rating
-    if (finalDecoratorId) {
-      const decReviews = await reviewCollection.find({ decoratorId: finalDecoratorId, status: "published" }).toArray();
-      const avg = (decReviews.reduce((sum, r) => sum + Number(r.rating), 0) / decReviews.length).toFixed(1);
-      await decoratorCollection.updateOne(
-        { _id: finalDecoratorId },
-        { $set: { "metrics.rating": Number(avg), "metrics.reviewCount": decReviews.length, updatedAt: new Date() } }
-      );
-    }
-
-    // Recalculate Agent Rating
-    if (finalAgentId) {
-      const agReviews = await reviewCollection.find({ agentId: finalAgentId, status: "published" }).toArray();
-      const agAvg = (agReviews.reduce((sum, r) => sum + Number(r.rating), 0) / agReviews.length).toFixed(1);
-      await agentCollection.updateOne(
-        { _id: finalAgentId },
-        { $set: { "metrics.rating": Number(agAvg), updatedAt: new Date() } }
-      );
-    }
+    // Update real-time aggregate ratings
+    await recalculateMetrics(finalDecoratorId, finalAgentId);
 
     res.status(201).send({
       success: true,
-      message: "Review published successfully",
+      message: "Review submitted successfully",
       reviewId: result.insertedId,
       data: { _id: result.insertedId, ...newReview },
     });
@@ -220,62 +250,114 @@ const createReview = async (req, res) => {
   }
 };
 
-// ========== 6. Vendor Reply to Review ==========
-const replyToReview = async (req, res) => {
+// 2.2 Get Customer Reviews (Logged-in Customer)
+const getCustomerReviews = async (req, res) => {
   try {
-    const { id } = req.params;
-    const { reply } = req.body;
+    const email = req.decoded_email;
+    const user = await userCollection.findOne({ email });
 
-    if (!ObjectId.isValid(id)) {
-      return res.status(400).send({ success: false, message: "Invalid review ID" });
-    }
+    const query = user
+      ? { $or: [{ customerId: user._id }, { customerEmail: email }] }
+      : { customerEmail: email };
 
-    if (!reply || !reply.trim()) {
-      return res.status(400).send({ success: false, message: "Reply text is required" });
-    }
-
-    const result = await reviewCollection.updateOne(
-      { _id: new ObjectId(id) },
-      {
-        $set: {
-          vendorReply: {
-            reply: reply.trim(),
-            repliedAt: new Date(),
-          },
-          updatedAt: new Date(),
-        },
-      }
-    );
-
-    if (result.matchedCount === 0) {
-      return res.status(404).send({ success: false, message: "Review not found" });
-    }
+    const reviews = await reviewCollection.find(query).sort({ createdAt: -1 }).toArray();
 
     res.send({
       success: true,
-      message: "Vendor reply saved successfully",
+      count: reviews.length,
+      data: reviews,
     });
   } catch (error) {
     res.status(500).send({
       success: false,
-      message: "Error replying to review",
+      message: "Error fetching customer reviews",
       error: error.message,
     });
   }
 };
 
-// ========== 7. Delete Review (Admin) ==========
-const deleteReview = async (req, res) => {
+// 2.3 Update Customer Review
+const updateCustomerReview = async (req, res) => {
   try {
     const { id } = req.params;
+    const { rating, comment, images } = req.body;
+    const email = req.decoded_email;
+    const user = await userCollection.findOne({ email });
+
     if (!ObjectId.isValid(id)) {
       return res.status(400).send({ success: false, message: "Invalid review ID" });
     }
 
-    const result = await reviewCollection.deleteOne({ _id: new ObjectId(id) });
-    if (result.deletedCount === 0) {
+    const review = await reviewCollection.findOne({ _id: new ObjectId(id) });
+    if (!review) {
       return res.status(404).send({ success: false, message: "Review not found" });
     }
+
+    // Ownership check (Customer owner or Admin)
+    const isOwner =
+      (user && review.customerId && review.customerId.toString() === user._id.toString()) ||
+      review.customerEmail === email ||
+      user?.role === "admin";
+
+    if (!isOwner) {
+      return res.status(403).send({ success: false, message: "Access denied. You cannot edit this review." });
+    }
+
+    const updateDoc = { updatedAt: new Date() };
+    if (rating !== undefined) updateDoc.rating = Math.min(5, Math.max(1, Number(rating)));
+    if (comment !== undefined) updateDoc.comment = comment.trim();
+    if (images !== undefined && Array.isArray(images)) updateDoc.images = images;
+
+    await reviewCollection.updateOne({ _id: new ObjectId(id) }, { $set: updateDoc });
+
+    // Recalculate metrics
+    await recalculateMetrics(review.decoratorId, review.agentId);
+
+    const updated = await reviewCollection.findOne({ _id: new ObjectId(id) });
+
+    res.send({
+      success: true,
+      message: "Review updated successfully",
+      data: updated,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error updating review",
+      error: error.message,
+    });
+  }
+};
+
+// 2.4 Delete Customer Review
+const deleteCustomerReview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const email = req.decoded_email;
+    const user = await userCollection.findOne({ email });
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ success: false, message: "Invalid review ID" });
+    }
+
+    const review = await reviewCollection.findOne({ _id: new ObjectId(id) });
+    if (!review) {
+      return res.status(404).send({ success: false, message: "Review not found" });
+    }
+
+    const isOwner =
+      (user && review.customerId && review.customerId.toString() === user._id.toString()) ||
+      review.customerEmail === email ||
+      user?.role === "admin";
+
+    if (!isOwner) {
+      return res.status(403).send({ success: false, message: "Access denied. You cannot delete this review." });
+    }
+
+    await reviewCollection.deleteOne({ _id: new ObjectId(id) });
+
+    // Recalculate metrics
+    await recalculateMetrics(review.decoratorId, review.agentId);
 
     res.send({
       success: true,
@@ -290,12 +372,447 @@ const deleteReview = async (req, res) => {
   }
 };
 
+// =========================================================================
+// ============================ 3. DECORATOR APIS ==========================
+// =========================================================================
+
+// 3.1 Get Agency Reviews (Logged-in Decorator)
+const getAgencyReviews = async (req, res) => {
+  try {
+    const email = req.decoded_email;
+    const user = await userCollection.findOne({ email });
+
+    let decorator = null;
+    if (user) {
+      decorator = await decoratorCollection.findOne({ userId: user._id });
+    }
+    if (!decorator) {
+      decorator = await decoratorCollection.findOne({
+        $or: [{ email }, { "contactInfo.email": email }],
+      });
+    }
+
+    if (!decorator) {
+      return res.status(404).send({ success: false, message: "Decorator agency profile not found" });
+    }
+
+    const reviews = await reviewCollection
+      .find({ decoratorId: decorator._id })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    const totalCount = reviews.length;
+    const publishedCount = reviews.filter((r) => r.status === "published").length;
+    const repliedCount = reviews.filter((r) => r.vendorReply && r.vendorReply.reply).length;
+    const pendingRepliesCount = publishedCount - repliedCount;
+    const avgRating =
+      publishedCount > 0
+        ? Number(
+            (
+              reviews
+                .filter((r) => r.status === "published")
+                .reduce((sum, r) => sum + Number(r.rating || 0), 0) / publishedCount
+            ).toFixed(1)
+          )
+        : 5.0;
+
+    res.send({
+      success: true,
+      decoratorId: decorator._id,
+      businessName: decorator.businessName,
+      stats: {
+        totalReviews: totalCount,
+        publishedCount,
+        repliedCount,
+        pendingRepliesCount,
+        averageRating: avgRating,
+      },
+      ratingDistribution: calculateDistribution(reviews.filter((r) => r.status === "published")),
+      data: reviews,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error fetching agency reviews",
+      error: error.message,
+    });
+  }
+};
+
+// 3.2 Reply to Review (Official Vendor Response)
+const replyToReview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { reply } = req.body;
+    const email = req.decoded_email;
+    const user = await userCollection.findOne({ email });
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ success: false, message: "Invalid review ID" });
+    }
+
+    if (!reply || !reply.trim()) {
+      return res.status(400).send({ success: false, message: "Reply text is required" });
+    }
+
+    const review = await reviewCollection.findOne({ _id: new ObjectId(id) });
+    if (!review) {
+      return res.status(404).send({ success: false, message: "Review not found" });
+    }
+
+    // Verify decorator ownership or admin
+    if (user?.role !== "admin") {
+      const decorator = await decoratorCollection.findOne({
+        $or: [{ userId: user?._id }, { email }, { "contactInfo.email": email }],
+      });
+      if (!decorator || decorator._id.toString() !== review.decoratorId?.toString()) {
+        return res.status(403).send({ success: false, message: "Access denied. You do not own this agency review." });
+      }
+    }
+
+    await reviewCollection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          vendorReply: {
+            reply: reply.trim(),
+            repliedAt: new Date(),
+          },
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    const updated = await reviewCollection.findOne({ _id: new ObjectId(id) });
+
+    res.send({
+      success: true,
+      message: "Official vendor response saved successfully",
+      data: updated,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error replying to review",
+      error: error.message,
+    });
+  }
+};
+
+// 3.3 Delete Review Reply
+const deleteReviewReply = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const email = req.decoded_email;
+    const user = await userCollection.findOne({ email });
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ success: false, message: "Invalid review ID" });
+    }
+
+    const review = await reviewCollection.findOne({ _id: new ObjectId(id) });
+    if (!review) {
+      return res.status(404).send({ success: false, message: "Review not found" });
+    }
+
+    if (user?.role !== "admin") {
+      const decorator = await decoratorCollection.findOne({
+        $or: [{ userId: user?._id }, { email }, { "contactInfo.email": email }],
+      });
+      if (!decorator || decorator._id.toString() !== review.decoratorId?.toString()) {
+        return res.status(403).send({ success: false, message: "Access denied. You do not own this agency review." });
+      }
+    }
+
+    await reviewCollection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          vendorReply: null,
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    res.send({
+      success: true,
+      message: "Vendor reply removed successfully",
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error deleting review reply",
+      error: error.message,
+    });
+  }
+};
+
+// =========================================================================
+// ============================== 4. AGENT APIS ============================
+// =========================================================================
+
+// 4.1 Get Assigned Event Reviews (Logged-in Agent)
+const getMyAgentReviews = async (req, res) => {
+  try {
+    const email = req.decoded_email;
+    const user = await userCollection.findOne({ email });
+
+    let agent = await agentCollection.findOne({ userId: user?._id });
+    if (!agent) agent = await agentCollection.findOne({ email });
+
+    if (!agent) {
+      return res.status(404).send({ success: false, message: "Field specialist profile not found" });
+    }
+
+    const reviews = await reviewCollection
+      .find({
+        agentId: agent._id,
+        status: "published",
+      })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    const totalCount = reviews.length;
+    const avgRating =
+      totalCount > 0
+        ? Number((reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / totalCount).toFixed(1))
+        : agent.metrics?.rating || 5.0;
+
+    res.send({
+      success: true,
+      agentId: agent._id,
+      agentName: agent.name,
+      designation: agent.designation,
+      count: totalCount,
+      averageRating: avgRating,
+      ratingDistribution: calculateDistribution(reviews),
+      data: reviews,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error fetching agent reviews",
+      error: error.message,
+    });
+  }
+};
+
+// 4.2 Get Reviews by Agent ID (Public / Admin lookup)
+const getReviewsByAgent = async (req, res) => {
+  try {
+    const { agentId } = req.params;
+    if (!ObjectId.isValid(agentId)) {
+      return res.status(400).send({ success: false, message: "Invalid agent ID" });
+    }
+
+    const reviews = await reviewCollection
+      .find({
+        agentId: new ObjectId(agentId),
+        status: "published",
+      })
+      .sort({ createdAt: -1 })
+      .toArray();
+
+    const totalCount = reviews.length;
+    const avgRating =
+      totalCount > 0
+        ? Number((reviews.reduce((sum, r) => sum + Number(r.rating || 0), 0) / totalCount).toFixed(1))
+        : 5.0;
+
+    res.send({
+      success: true,
+      count: totalCount,
+      averageRating: avgRating,
+      ratingDistribution: calculateDistribution(reviews),
+      data: reviews,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error fetching reviews for agent",
+      error: error.message,
+    });
+  }
+};
+
+// =========================================================================
+// ============================== 5. ADMIN APIS ============================
+// =========================================================================
+
+// 5.1 Get All Reviews (Admin Supervision & Moderation Filters)
+const getAllReviewsAdmin = async (req, res) => {
+  try {
+    const {
+      status = "all",
+      search = "",
+      decoratorId,
+      agentId,
+      rating,
+      page = 1,
+      limit = 20,
+    } = req.query;
+
+    const query = {};
+
+    if (status && status !== "all") {
+      query.status = status;
+    }
+    if (decoratorId && ObjectId.isValid(decoratorId)) {
+      query.decoratorId = new ObjectId(decoratorId);
+    }
+    if (agentId && ObjectId.isValid(agentId)) {
+      query.agentId = new ObjectId(agentId);
+    }
+    if (rating && !isNaN(rating)) {
+      query.rating = Number(rating);
+    }
+    if (search && search.trim()) {
+      const q = search.trim();
+      query.$or = [
+        { customerName: { $regex: q, $options: "i" } },
+        { customerEmail: { $regex: q, $options: "i" } },
+        { comment: { $regex: q, $options: "i" } },
+        { agentName: { $regex: q, $options: "i" } },
+      ];
+    }
+
+    const pageNum = Math.max(1, parseInt(page, 10));
+    const limitNum = Math.max(1, parseInt(limit, 10));
+    const skip = (pageNum - 1) * limitNum;
+
+    const totalCount = await reviewCollection.countDocuments(query);
+    const reviews = await reviewCollection
+      .find(query)
+      .sort({ createdAt: -1 })
+      .skip(skip)
+      .limit(limitNum)
+      .toArray();
+
+    // Summary counts for tabs
+    const [publishedCount, hiddenCount, flaggedCount] = await Promise.all([
+      reviewCollection.countDocuments({ status: "published" }),
+      reviewCollection.countDocuments({ status: "hidden" }),
+      reviewCollection.countDocuments({ status: "flagged" }),
+    ]);
+
+    res.send({
+      success: true,
+      totalCount,
+      page: pageNum,
+      limit: limitNum,
+      totalPages: Math.max(1, Math.ceil(totalCount / limitNum)),
+      stats: {
+        all: await reviewCollection.countDocuments({}),
+        published: publishedCount,
+        hidden: hiddenCount,
+        flagged: flaggedCount,
+      },
+      data: reviews,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error fetching reviews for admin",
+      error: error.message,
+    });
+  }
+};
+
+// 5.2 Moderate Review Status (published | hidden | flagged | archived)
+const moderateReviewStatus = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { status } = req.body;
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ success: false, message: "Invalid review ID" });
+    }
+
+    const validStatuses = ["published", "hidden", "flagged", "archived"];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).send({
+        success: false,
+        message: `Invalid status. Allowed: ${validStatuses.join(", ")}`,
+      });
+    }
+
+    const review = await reviewCollection.findOne({ _id: new ObjectId(id) });
+    if (!review) {
+      return res.status(404).send({ success: false, message: "Review not found" });
+    }
+
+    await reviewCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { status, updatedAt: new Date() } }
+    );
+
+    // Recalculate metrics
+    await recalculateMetrics(review.decoratorId, review.agentId);
+
+    res.send({
+      success: true,
+      message: `Review status updated to "${status}"`,
+      status,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error moderating review status",
+      error: error.message,
+    });
+  }
+};
+
+// 5.3 Delete Review Permanently (Admin)
+const deleteReviewPermanently = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ success: false, message: "Invalid review ID" });
+    }
+
+    const review = await reviewCollection.findOne({ _id: new ObjectId(id) });
+    if (!review) {
+      return res.status(404).send({ success: false, message: "Review not found" });
+    }
+
+    await reviewCollection.deleteOne({ _id: new ObjectId(id) });
+
+    // Recalculate metrics
+    await recalculateMetrics(review.decoratorId, review.agentId);
+
+    res.send({
+      success: true,
+      message: "Review permanently deleted",
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error deleting review",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
-  getReviewsByDecorator,
-  getReviewsByAgent,
+  // Public
   getReviewsByService,
-  getReviews,
+  getReviewsByDecorator,
+  getFeaturedReviews,
+  // Customer
   createReview,
+  getCustomerReviews,
+  updateCustomerReview,
+  deleteCustomerReview,
+  // Decorator
+  getAgencyReviews,
   replyToReview,
-  deleteReview,
+  deleteReviewReply,
+  // Agent
+  getMyAgentReviews,
+  getReviewsByAgent,
+  // Admin
+  getAllReviewsAdmin,
+  moderateReviewStatus,
+  deleteReviewPermanently,
 };
