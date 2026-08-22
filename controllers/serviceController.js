@@ -27,6 +27,8 @@ const getServices = async (req, res) => {
       category,
       subCategory,
       decoratorId,
+      district,
+      division,
       city,
       minPrice,
       maxPrice,
@@ -92,19 +94,33 @@ const getServices = async (req, res) => {
       ];
     }
 
-    // 7. City / Location Filter (checks if decorator operates in that city)
+    // 7. District / Division / City Filter (checks if decorator operates in that district/division)
+    const locationFilters = [];
+    if (district && district !== "all") {
+      locationFilters.push(
+        { "contactInfo.district": { $regex: district.trim(), $options: "i" } },
+        { serviceAreas: { $regex: district.trim(), $options: "i" } }
+      );
+    }
+    if (division && division !== "all") {
+      locationFilters.push({ "contactInfo.division": { $regex: division.trim(), $options: "i" } });
+    }
     if (city && city !== "all") {
-      const decoratorsInCity = await decoratorCollection
-        .find({
-          $or: [
-            { "contactInfo.city": { $regex: city.trim(), $options: "i" } },
-            { serviceAreas: { $regex: city.trim(), $options: "i" } },
-          ],
-        })
+      locationFilters.push(
+        { "contactInfo.district": { $regex: city.trim(), $options: "i" } },
+        { "contactInfo.division": { $regex: city.trim(), $options: "i" } },
+        { "contactInfo.city": { $regex: city.trim(), $options: "i" } },
+        { serviceAreas: { $regex: city.trim(), $options: "i" } }
+      );
+    }
+
+    if (locationFilters.length > 0) {
+      const decoratorsInLocation = await decoratorCollection
+        .find({ $or: locationFilters })
         .project({ _id: 1 })
         .toArray();
 
-      const decoratorIds = decoratorsInCity.map((d) => d._id);
+      const decoratorIds = decoratorsInLocation.map((d) => d._id);
       query.decoratorId = { $in: decoratorIds };
     }
 

@@ -19,6 +19,8 @@ const getDecorators = async (req, res) => {
   try {
     const {
       status = "active",
+      district,
+      division,
       city,
       serviceArea,
       category,
@@ -36,9 +38,22 @@ const getDecorators = async (req, res) => {
       query.status = status;
     }
 
-    // City / Service Area filter
+    // District / Division / Service Area filter
+    if (district && district !== "all") {
+      query.$or = [
+        { "contactInfo.district": district },
+        { serviceAreas: district },
+      ];
+    }
+    if (division && division !== "all") {
+      query["contactInfo.division"] = division;
+    }
     if (city && city !== "all") {
-      query["contactInfo.city"] = city;
+      query.$or = [
+        { "contactInfo.district": city },
+        { "contactInfo.division": city },
+        { serviceAreas: city },
+      ];
     }
     if (serviceArea && serviceArea !== "all") {
       query.serviceAreas = serviceArea;
@@ -54,14 +69,15 @@ const getDecorators = async (req, res) => {
       query.featured = true;
     }
 
-    // Search query (businessName, tagline, about, city)
+    // Search query (businessName, tagline, about, district, division, serviceAreas)
     if (search && search.trim() !== "") {
       const searchRegex = { $regex: search.trim(), $options: "i" };
       query.$or = [
         { businessName: searchRegex },
         { tagline: searchRegex },
         { about: searchRegex },
-        { "contactInfo.city": searchRegex },
+        { "contactInfo.district": searchRegex },
+        { "contactInfo.division": searchRegex },
         { serviceAreas: searchRegex },
       ];
     }
@@ -317,8 +333,9 @@ const createDecorator = async (req, res) => {
         phone: contactInfo.phone || user.phone || "",
         email: contactInfo.email || email,
         website: contactInfo.website || "",
-        address: contactInfo.address || user.address?.street || "",
-        city: contactInfo.city || user.address?.city || "Dhaka",
+        address: contactInfo.address || user.address?.home || user.address?.street || "",
+        district: contactInfo.district || user.address?.district || user.address?.area || "Dhaka",
+        division: contactInfo.division || user.address?.division || user.address?.city || "Dhaka",
       },
       serviceAreas: Array.isArray(serviceAreas) ? serviceAreas : ["Dhaka"],
       categories: Array.isArray(categories) ? categories : [],

@@ -40,21 +40,21 @@ const createUser = async (req, res) => {
       phone: phone || "",
       photoUrl: photoUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400",
       role: "customer",
-      address: address || {
-        home: "",
-        district: "Dhaka",
-        division: "Dhaka",
-        postalCode: ""
+      address: {
+        home: address?.home || address?.street || "",
+        district: address?.district || address?.area || "Dhaka",
+        division: address?.division || address?.city || "Dhaka",
+        postalCode: address?.postalCode || "",
       },
       createdAt: new Date(),
-      updatedAt: new Date()
+      updatedAt: new Date(),
     };
 
     const result = await userCollection.insertOne(newUser);
     res.status(201).send({
       message: "User created successfully",
       insertedId: result.insertedId,
-      user: { _id: result.insertedId, ...newUser }
+      user: { _id: result.insertedId, ...newUser },
     });
   } catch (error) {
     res.status(500).send({ message: "Error creating or syncing user", error: error.message });
@@ -80,7 +80,7 @@ const getMyProfile = async (req, res) => {
 // Retrieves users with search, role filters, division & district filters, and pagination
 const getAllUsers = async (req, res) => {
   try {
-    const { search, role, division, district, city, page = 1, limit = 10, sort = "desc" } = req.query;
+    const { search, role, division, district, page = 1, limit = 10, sort = "desc" } = req.query;
 
     const andConditions = [];
 
@@ -98,13 +98,11 @@ const getAllUsers = async (req, res) => {
       andConditions.push({ role });
     }
 
-    const divisionFilter = division || city;
-    if (divisionFilter && divisionFilter !== "all") {
+    if (division && division !== "all") {
       andConditions.push({
         $or: [
-          { "address.division": divisionFilter },
-          { "address.division": { $regex: `^${divisionFilter}$`, $options: "i" } },
-          { "address.city": divisionFilter },
+          { "address.division": division },
+          { "address.division": { $regex: `^${division}$`, $options: "i" } },
         ],
       });
     }
@@ -114,7 +112,6 @@ const getAllUsers = async (req, res) => {
         $or: [
           { "address.district": district },
           { "address.district": { $regex: `^${district}$`, $options: "i" } },
-          { "address.area": district },
         ],
       });
     }
@@ -182,10 +179,10 @@ const updateUserProfile = async (req, res) => {
     if (photoUrl) updateDoc.$set.photoUrl = photoUrl;
     if (address) {
       updateDoc.$set.address = {
-        home: address.home || address.street || "",
-        district: address.district || address.area || "",
-        division: address.division || address.city || "Dhaka",
-        postalCode: address.postalCode || ""
+        home: address.home ?? address.street ?? "",
+        district: address.district ?? address.area ?? "Dhaka",
+        division: address.division ?? address.city ?? "Dhaka",
+        postalCode: address.postalCode ?? "",
       };
     }
 
@@ -209,8 +206,8 @@ const updateUserById = async (req, res) => {
     const { name, phone, photoUrl, role, address } = req.body;
     const updateDoc = {
       $set: {
-        updatedAt: new Date()
-      }
+        updatedAt: new Date(),
+      },
     };
 
     if (name) updateDoc.$set.name = name;
@@ -225,10 +222,10 @@ const updateUserById = async (req, res) => {
     }
     if (address) {
       updateDoc.$set.address = {
-        home: address.home || address.street || "",
-        district: address.district || address.area || "",
-        division: address.division || address.city || "Dhaka",
-        postalCode: address.postalCode || ""
+        home: address.home ?? address.street ?? "",
+        district: address.district ?? address.area ?? "Dhaka",
+        division: address.division ?? address.city ?? "Dhaka",
+        postalCode: address.postalCode ?? "",
       };
     }
 
@@ -296,24 +293,22 @@ const getUserStats = async (req, res) => {
     const agentCount = await userCollection.countDocuments({ role: "agent" });
     const customerCount = await userCollection.countDocuments({ role: "customer" });
 
-    // Aggregate counts by division (fallback to city if division is not yet migrated)
+    // Aggregate counts by division
     const divisionAggregation = await userCollection
       .aggregate([
         {
-          $project: {
-            division: { $ifNull: ["$address.division", "$address.city"] },
-          },
-        },
-        {
           $match: {
-            division: { $exists: true, $nin: [null, ""] },
+            "address.division": { $exists: true, $nin: [null, ""] },
           },
         },
         {
           $group: {
-            _id: "$division",
+            _id: "$address.division",
             count: { $sum: 1 },
           },
+        },
+        {
+          $sort: { _id: 1 },
         },
       ])
       .toArray();
@@ -325,24 +320,22 @@ const getUserStats = async (req, res) => {
       }
     });
 
-    // Aggregate counts by district (fallback to area if district is not yet migrated)
+    // Aggregate counts by district
     const districtAggregation = await userCollection
       .aggregate([
         {
-          $project: {
-            district: { $ifNull: ["$address.district", "$address.area"] },
-          },
-        },
-        {
           $match: {
-            district: { $exists: true, $nin: [null, ""] },
+            "address.district": { $exists: true, $nin: [null, ""] },
           },
         },
         {
           $group: {
-            _id: "$district",
+            _id: "$address.district",
             count: { $sum: 1 },
           },
+        },
+        {
+          $sort: { _id: 1 },
         },
       ])
       .toArray();

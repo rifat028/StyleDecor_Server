@@ -52,7 +52,8 @@ const enrichAgents = async (agents) => {
             _id: dec._id,
             businessName: dec.businessName,
             logo: dec.logo,
-            city: dec.contactInfo?.city || "Dhaka",
+            district: dec.contactInfo?.district || dec.contactInfo?.city || "Dhaka",
+            division: dec.contactInfo?.division || "Dhaka",
             phone: dec.contactInfo?.phone || "",
           }
         : null,
@@ -63,6 +64,7 @@ const enrichAgents = async (agents) => {
             email: usr.email,
             phone: usr.phone,
             photoUrl: usr.photoUrl,
+            address: usr.address,
           }
         : null,
       metrics: {
@@ -472,6 +474,8 @@ const getAgents = async (req, res) => {
     const {
       decoratorId,
       status,
+      district,
+      division,
       city,
       specialization,
       search,
@@ -486,8 +490,14 @@ const getAgents = async (req, res) => {
     if (decoratorId && ObjectId.isValid(decoratorId)) {
       query.decoratorId = new ObjectId(decoratorId);
     }
+    if (district && district !== "all") {
+      query["assignedArea.district"] = district;
+    }
     if (city && city !== "all") {
-      query["assignedArea.city"] = city;
+      query.$or = [
+        { "assignedArea.district": city },
+        { "assignedArea.city": city },
+      ];
     }
     if (specialization && specialization !== "all") {
       query.specialization = { $regex: specialization, $options: "i" };

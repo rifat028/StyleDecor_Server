@@ -27,10 +27,10 @@ const enrichBookings = async (bookings) => {
 
   // Batch Lookups
   const [customers, decorators, agents, services] = await Promise.all([
-    userCollection.find({ _id: { $in: customerIds } }).project({ name: 1, email: 1, phone: 1, photoURL: 1 }).toArray(),
-    decoratorCollection.find({ _id: { $in: decoratorIds } }).project({ businessName: 1, logo: 1, "contactInfo.phone": 1, "contactInfo.city": 1, verification: 1 }).toArray(),
+    userCollection.find({ _id: { $in: customerIds } }).project({ name: 1, email: 1, phone: 1, photoUrl: 1, photoURL: 1, address: 1 }).toArray(),
+    decoratorCollection.find({ _id: { $in: decoratorIds } }).project({ businessName: 1, logo: 1, "contactInfo.phone": 1, "contactInfo.district": 1, "contactInfo.division": 1, "contactInfo.city": 1, verification: 1 }).toArray(),
     agentCollection.find({ _id: { $in: agentIds } }).project({ name: 1, photoUrl: 1, phone: 1, designation: 1, assignedArea: 1 }).toArray(),
-    serviceCollection.find({ _id: { $in: serviceIds } }).project({ title: 1, serviceName: 1, coverImage: 1, pricing: 1, category: 1 }).toArray(),
+    serviceCollection.find({ _id: { $in: serviceIds } }).project({ title: 1, serviceName: 1, coverImage: 1, primaryImage: 1, pricing: 1, category: 1, subCategory: 1 }).toArray(),
   ]);
 
   const customerMap = new Map(customers.map((c) => [c._id.toString(), c]));
