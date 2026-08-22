@@ -23,6 +23,9 @@ router.patch("/:id", verifyFbToken, verifyAdmin, categoryController.updateCatego
 // Add a subcategory to a category
 router.post("/:id/subcategories", verifyFbToken, verifyAdmin, categoryController.addSubCategory);
 
+// Update a subcategory in a category
+router.patch("/:id/subcategories/:subId", verifyFbToken, verifyAdmin, categoryController.updateSubCategory);
+
 // Delete a subcategory from a category
 router.delete("/:id/subcategories/:subId", verifyFbToken, verifyAdmin, categoryController.deleteSubCategory);
 

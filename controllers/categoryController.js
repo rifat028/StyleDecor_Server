@@ -17,11 +17,15 @@ const generateSlug = (text) => {
 // Retrieves all categories with optional search, status filtering, and sorting
 const getAllCategories = async (req, res) => {
   try {
-    const { status, search } = req.query;
+    const { status, featured, feature, search } = req.query;
     const query = {};
 
     if (status && status !== "all") {
       query.status = status;
+    }
+
+    if (featured === "true" || feature === "true") {
+      query.feature = true;
     }
 
     if (search) {
@@ -37,10 +41,22 @@ const getAllCategories = async (req, res) => {
       .sort({ order: 1, createdAt: 1 })
       .toArray();
 
+    const formattedCategories = categories.map((cat) => ({
+      ...cat,
+      slug: cat.slug || generateSlug(cat.name),
+      subCategories: Array.isArray(cat.subCategories)
+        ? cat.subCategories.map((sub, idx) => ({
+            ...sub,
+            id: sub.id !== undefined ? sub.id : idx + 1,
+            slug: sub.slug || generateSlug(sub.name),
+          }))
+        : [],
+    }));
+
     res.send({
       success: true,
-      totalCount: categories.length,
-      data: categories,
+      totalCount: formattedCategories.length,
+      data: formattedCategories,
     });
   } catch (error) {
     res.status(500).send({
@@ -65,7 +81,19 @@ const getCategoryById = async (req, res) => {
       return res.status(404).send({ success: false, message: "Category not found" });
     }
 
-    res.send({ success: true, data: category });
+    const formatted = {
+      ...category,
+      slug: category.slug || generateSlug(category.name),
+      subCategories: Array.isArray(category.subCategories)
+        ? category.subCategories.map((sub, idx) => ({
+            ...sub,
+            id: sub.id !== undefined ? sub.id : idx + 1,
+            slug: sub.slug || generateSlug(sub.name),
+          }))
+        : [],
+    };
+
+    res.send({ success: true, data: formatted });
   } catch (error) {
     res.status(500).send({
       success: false,
@@ -79,7 +107,7 @@ const getCategoryById = async (req, res) => {
 // Creates a new main category with subcategories
 const createCategory = async (req, res) => {
   try {
-    const { name, description, order, status = "active", subCategories = [] } = req.body;
+    const { name, description, order, feature, featured, status = "active", subCategories = [] } = req.body;
 
     if (!name) {
       return res.status(400).send({ success: false, message: "Category name is required" });
@@ -98,9 +126,8 @@ const createCategory = async (req, res) => {
 
     // Format subcategories if provided
     const formattedSubCategories = subCategories.map((sub, index) => ({
-      id: sub.id || `sub_${Date.now()}_${index}`,
+      id: sub.id !== undefined ? sub.id : index + 1,
       name: sub.name,
-      slug: sub.slug || generateSlug(sub.name),
       status: sub.status || "active",
       order: sub.order !== undefined ? Number(sub.order) : index + 1,
     }));
@@ -109,6 +136,7 @@ const createCategory = async (req, res) => {
       name: name.trim(),
       status,
       order: order !== undefined ? Number(order) : 1,
+      feature: Boolean(feature ?? featured ?? false),
       description: description || "",
       subCategories: formattedSubCategories,
       createdAt: new Date(),
@@ -141,7 +169,7 @@ const updateCategory = async (req, res) => {
       return res.status(400).send({ success: false, message: "Invalid category ID format" });
     }
 
-    const { name, description, order, status, subCategories } = req.body;
+    const { name, description, order, status, feature, featured, subCategories } = req.body;
     const updateDoc = {
       $set: {
         updatedAt: new Date(),
@@ -152,11 +180,13 @@ const updateCategory = async (req, res) => {
     if (description !== undefined) updateDoc.$set.description = description;
     if (order !== undefined) updateDoc.$set.order = Number(order);
     if (status !== undefined) updateDoc.$set.status = status;
+    if (feature !== undefined || featured !== undefined) {
+      updateDoc.$set.feature = Boolean(feature ?? featured);
+    }
     if (subCategories !== undefined && Array.isArray(subCategories)) {
       updateDoc.$set.subCategories = subCategories.map((sub, index) => ({
-        id: sub.id || `sub_${Date.now()}_${index}`,
+        id: sub.id !== undefined ? sub.id : index + 1,
         name: sub.name,
-        slug: sub.slug || generateSlug(sub.name),
         status: sub.status || "active",
         order: sub.order !== undefined ? Number(sub.order) : index + 1,
       }));
@@ -196,30 +226,33 @@ const addSubCategory = async (req, res) => {
       return res.status(400).send({ success: false, message: "Invalid category ID format" });
     }
 
-    const { name, slug, status = "active", order } = req.body;
+    const { name, status = "active", order, id: subId } = req.body;
     if (!name) {
       return res.status(400).send({ success: false, message: "Subcategory name is required" });
     }
 
+    const category = await categoryCollection.findOne({ _id: new ObjectId(id) });
+    if (!category) {
+      return res.status(404).send({ success: false, message: "Category not found" });
+    }
+
+    const existingSubs = category.subCategories || [];
+    const calculatedId = subId !== undefined ? subId : (existingSubs.length > 0 ? Math.max(...existingSubs.map((s) => Number(s.id) || 0)) + 1 : 1);
+
     const newSub = {
-      id: `sub_${Date.now()}`,
+      id: calculatedId,
       name: name.trim(),
-      slug: slug || generateSlug(name),
       status,
-      order: order !== undefined ? Number(order) : 1,
+      order: order !== undefined ? Number(order) : existingSubs.length + 1,
     };
 
-    const result = await categoryCollection.updateOne(
+    await categoryCollection.updateOne(
       { _id: new ObjectId(id) },
       {
         $push: { subCategories: newSub },
         $set: { updatedAt: new Date() },
       }
     );
-
-    if (result.matchedCount === 0) {
-      return res.status(404).send({ success: false, message: "Category not found" });
-    }
 
     res.status(201).send({
       success: true,
@@ -235,6 +268,65 @@ const addSubCategory = async (req, res) => {
   }
 };
 
+// ========== Update SubCategory (Admin Only) ==========
+// Modifies an existing subcategory inside a category
+const updateSubCategory = async (req, res) => {
+  try {
+    const { id, subId } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ success: false, message: "Invalid category ID format" });
+    }
+
+    const { name, status, order } = req.body;
+    const numericSubId = !isNaN(Number(subId)) ? Number(subId) : subId;
+
+    const category = await categoryCollection.findOne({
+      _id: new ObjectId(id),
+      $or: [{ "subCategories.id": subId }, { "subCategories.id": numericSubId }],
+    });
+
+    if (!category) {
+      return res.status(404).send({ success: false, message: "Subcategory not found" });
+    }
+
+    const updatedSubCategories = category.subCategories.map((sub) => {
+      if (sub.id === subId || sub.id === numericSubId) {
+        return {
+          ...sub,
+          name: name !== undefined ? name.trim() : sub.name,
+          status: status !== undefined ? status : sub.status,
+          order: order !== undefined ? Number(order) : sub.order,
+        };
+      }
+      return sub;
+    });
+
+    await categoryCollection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          subCategories: updatedSubCategories,
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    const updated = await categoryCollection.findOne({ _id: new ObjectId(id) });
+
+    res.send({
+      success: true,
+      message: "Subcategory updated successfully",
+      data: updated,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error updating subcategory",
+      error: error.message,
+    });
+  }
+};
+
 // ========== Delete SubCategory (Admin Only) ==========
 // Removes a subcategory from a category
 const deleteSubCategory = async (req, res) => {
@@ -244,10 +336,16 @@ const deleteSubCategory = async (req, res) => {
       return res.status(400).send({ success: false, message: "Invalid category ID format" });
     }
 
+    const numericSubId = !isNaN(Number(subId)) ? Number(subId) : subId;
+
     const result = await categoryCollection.updateOne(
       { _id: new ObjectId(id) },
       {
-        $pull: { subCategories: { id: subId } },
+        $pull: {
+          subCategories: {
+            id: { $in: [subId, numericSubId] },
+          },
+        },
         $set: { updatedAt: new Date() },
       }
     );
@@ -303,6 +401,7 @@ module.exports = {
   createCategory,
   updateCategory,
   addSubCategory,
+  updateSubCategory,
   deleteSubCategory,
   deleteCategory,
 };

@@ -28,9 +28,20 @@ app.use("/services", serviceRoutes);
 app.use("/users", userRoutes);
 app.use("/bookings", bookingRoutes);
 app.use("/decorators", decoratorRoutes);
-app.use("/", paymentRoutes);
+app.use("/payments", paymentRoutes);
 app.use("/categories", categoryRoutes);
 app.use("/agents", agentRoutes);
 app.use("/reviews", reviewRoutes);
+
+// Legacy root aliases for payment callbacks
+app.patch("/payment-success", (req, res, next) => {
+  req.url = "/payment-success";
+  paymentRoutes(req, res, next);
+});
+app.post("/create-checkout-session", (req, res, next) => {
+  req.url = "/create-checkout-session";
+  paymentRoutes(req, res, next);
+});
+app.use("/transactions", paymentRoutes);
 
 module.exports = app;
