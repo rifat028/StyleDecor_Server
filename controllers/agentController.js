@@ -556,9 +556,9 @@ const getAgentStats = async (req, res) => {
     const allAgents = await agentCollection.find({}).toArray();
 
     const totalAgents = allAgents.length;
-    const availableCount = allAgents.filter((a) => a.status === "available").length;
+    const availableCount = allAgents.filter((a) => a.status === "available" || a.status === "active").length;
     const onAssignmentCount = allAgents.filter((a) => a.status === "on_assignment" || a.status === "assigned").length;
-    const offDutyCount = allAgents.filter((a) => a.status === "off_duty" || a.status === "on_leave").length;
+    const offDutyCount = allAgents.filter((a) => a.status === "off_duty" || a.status === "on_leave" || a.status === "inactive" || a.status === "suspended").length;
 
     const totalCompletedEvents = allAgents.reduce((sum, a) => sum + (a.metrics?.completedEvents || 0), 0);
     const avgRating = totalAgents > 0
