@@ -7,13 +7,16 @@ const decoratorController = require("../controllers/decoratorController");
 // ========== Decorator Routes ==========
 
 // 1. Static / High-priority Endpoints
+router.get("/stats", verifyFbToken, verifyAdmin, decoratorController.getDecoratorStats);
 router.get("/toprated", decoratorController.getTopRatedDecorators);
+router.get("/featured", decoratorController.getFeaturedDecorators);
 
 // 2. Authenticated Profile Endpoint
 router.get("/me", verifyFbToken, decoratorController.getMyDecoratorProfile);
 
 // 3. Named Param Endpoints
 router.get("/id/:id", decoratorController.getDecoratorById);
+router.get("/slug/:slug", decoratorController.getDecoratorBySlug);
 
 // 4. Query-able List (Public & Admin, with filtering, search, pagination)
 router.get("/", decoratorController.getDecorators);

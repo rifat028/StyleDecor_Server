@@ -308,6 +308,25 @@ function generateDecorators(decoratorUserMap) {
       },
       serviceAreas: decGeo.serviceAreas,
       categories: decGeo.assignedCategories,
+      metrics: {
+        rating: Number((4.6 + ((idx * 7) % 5) * 0.1).toFixed(1)),
+        reviewCount: 15 + ((idx * 11) % 85),
+        completedEvents: 20 + ((idx * 13) % 120),
+        responseRate: 98,
+        responseTimeHours: 1.2,
+      },
+      verification: {
+        isVerified: true,
+        tradeLicenseNo: `TRD-${decGeo.district.toUpperCase().slice(0, 3)}-${1000 + idx}`,
+        nidVerified: true,
+        verifiedAt: joinDate,
+      },
+      socialLinks: {
+        facebook: `https://facebook.com/${slug}`,
+        instagram: `https://instagram.com/${slug}`,
+      },
+      status: "active",
+      featured: idx < 8,
       createdAt: joinDate,
       updatedAt: joinDate,
     };
