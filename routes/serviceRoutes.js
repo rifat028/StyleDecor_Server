@@ -7,6 +7,7 @@ const serviceController = require("../controllers/serviceController");
 // ========== Service Endpoints ==========
 
 // 1. Static / Named Endpoints
+router.get("/stats", verifyFbToken, verifyAdmin, serviceController.getServiceStats);
 router.get("/latest", serviceController.getLatestServices);
 router.get("/toprated", serviceController.getTopRatedServices);
 router.get("/decorator/:decoratorId", serviceController.getServicesByDecorator);

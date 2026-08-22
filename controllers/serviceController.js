@@ -45,7 +45,14 @@ const getServices = async (req, res) => {
 
     // 1. Status Filter
     if (status && status !== "all") {
-      query.status = status;
+      if (status === "active") {
+        query.$and = query.$and || [];
+        query.$and.push({
+          $or: [{ status: "active" }, { status: { $exists: false } }],
+        });
+      } else {
+        query.status = status;
+      }
     }
 
     // 2. Decorator Filter
@@ -192,8 +199,11 @@ const getServices = async (req, res) => {
       .project({
         businessName: 1,
         logo: 1,
+        "contactInfo.district": 1,
+        "contactInfo.division": 1,
         "contactInfo.city": 1,
         "contactInfo.phone": 1,
+        "contactInfo.address": 1,
         "metrics.rating": 1,
         verification: 1,
       })
@@ -231,7 +241,7 @@ const getLatestServices = async (req, res) => {
   try {
     const { limit = 8 } = req.query;
     const services = await serviceCollection
-      .find({ status: "active" })
+      .find({ $or: [{ status: "active" }, { status: { $exists: false } }] })
       .sort({ createdAt: -1, _id: -1 })
       .limit(Number(limit))
       .toArray();
@@ -243,7 +253,10 @@ const getLatestServices = async (req, res) => {
       .project({
         businessName: 1,
         logo: 1,
+        "contactInfo.district": 1,
+        "contactInfo.division": 1,
         "contactInfo.city": 1,
+        "contactInfo.phone": 1,
         verification: 1,
       })
       .toArray();
@@ -595,8 +608,51 @@ const deleteService = async (req, res) => {
   }
 };
 
+// ========== Get Service Stats (Admin) ==========
+const getServiceStats = async (req, res) => {
+  try {
+    const total = await serviceCollection.countDocuments({});
+    const active = await serviceCollection.countDocuments({
+      $or: [{ status: "active" }, { status: { $exists: false } }],
+    });
+    const inactive = await serviceCollection.countDocuments({ status: "inactive" });
+    const featured = await serviceCollection.countDocuments({ featured: true });
+
+    const categoryStats = await serviceCollection
+      .aggregate([
+        {
+          $group: {
+            _id: "$category",
+            count: { $sum: 1 },
+            avgPrice: { $avg: "$pricing.basePrice" },
+          },
+        },
+        { $sort: { count: -1 } },
+      ])
+      .toArray();
+
+    res.send({
+      success: true,
+      data: {
+        total,
+        active,
+        inactive,
+        featured,
+        byCategory: categoryStats,
+      },
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error fetching service stats",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getServices,
+  getServiceStats,
   getLatestServices,
   getTopRatedServices,
   getServicesByDecorator,
