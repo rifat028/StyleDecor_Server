@@ -604,8 +604,56 @@ const deleteBooking = async (req, res) => {
   }
 };
 
+// ========== Get Booking Statistics (Admin / Overview) ==========
+const getBookingStats = async (req, res) => {
+  try {
+    const allBookings = await bookingCollection.find({}).toArray();
+
+    const total = allBookings.length;
+    const pending = allBookings.filter((b) => b.status === "pending" || b.status === "draft").length;
+    const accepted = allBookings.filter((b) => b.status === "accepted").length;
+    const advancePaid = allBookings.filter((b) => b.status === "advance_paid").length;
+    const inProgress = allBookings.filter((b) => b.status === "preparing" || b.status === "on_the_way" || b.status === "in_progress").length;
+    const completed = allBookings.filter((b) => b.status === "completed").length;
+    const cancelled = allBookings.filter((b) => b.status === "cancelled").length;
+
+    // Total gross volume & received revenue
+    const totalVolume = allBookings.reduce((sum, b) => {
+      const amt = b.pricingBreakdown?.grandTotal || b.financials?.totalAmount || b.totalCost || b.serviceSnapshot?.unitPrice || 0;
+      return sum + Number(amt);
+    }, 0);
+
+    const totalRevenueCollected = allBookings.reduce((sum, b) => {
+      const paid = b.pricingBreakdown?.paidAmount || b.financials?.advancePaid || (b.paid ? b.totalCost : 0) || 0;
+      return sum + Number(paid);
+    }, 0);
+
+    res.send({
+      success: true,
+      stats: {
+        total,
+        pending,
+        accepted,
+        advancePaid,
+        inProgress,
+        completed,
+        cancelled,
+        totalVolume,
+        totalRevenueCollected,
+      },
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error fetching booking statistics",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getBookings,
+  getBookingStats,
   getMyBookings,
   getBookingsByDecorator,
   getBookingsByAgent,

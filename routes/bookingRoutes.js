@@ -7,6 +7,7 @@ const bookingController = require("../controllers/bookingController");
 // ========== Booking Endpoints ==========
 
 // 1. Static / Specific Named Routes
+router.get("/stats", verifyFbToken, verifyAdmin, bookingController.getBookingStats);
 router.get("/my-bookings", verifyFbToken, bookingController.getMyBookings);
 router.get("/user/:email", verifyFbToken, bookingController.getMyBookings);
 router.get("/client/:email", verifyFbToken, bookingController.getMyBookings);
