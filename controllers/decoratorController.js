@@ -18,7 +18,8 @@ const generateSlug = (text) => {
 const getDecorators = async (req, res) => {
   try {
     const {
-      status = "active",
+      status,
+      verified,
       district,
       division,
       city,
@@ -33,12 +34,12 @@ const getDecorators = async (req, res) => {
 
     const query = {};
 
-    // Status filter
+    // Status filter: only filter when status is provided and not 'all'
     if (status && status !== "all") {
       if (status === "active") {
         query.$and = query.$and || [];
         query.$and.push({
-          $or: [{ status: "active" }, { status: { $exists: false } }],
+          $or: [{ status: "active" }, { status: { $exists: false } }, { status: null }],
         });
       } else {
         query.status = status;
@@ -56,7 +57,14 @@ const getDecorators = async (req, res) => {
       ];
     }
     if (division && division !== "all") {
-      query["contactInfo.division"] = { $regex: `^${division}$`, $options: "i" };
+      const divRegex = { $regex: `^${division}$`, $options: "i" };
+      query.$and = query.$and || [];
+      query.$and.push({
+        $or: [
+          { "contactInfo.division": divRegex },
+          { division: divRegex },
+        ],
+      });
     }
     if (city && city !== "all") {
       const cityRegex = { $regex: `^${city}$`, $options: "i" };
@@ -81,6 +89,11 @@ const getDecorators = async (req, res) => {
     // Featured filter
     if (featured === "true") {
       query.featured = true;
+    }
+
+    // Verified filter
+    if (verified === "true") {
+      query["verification.isVerified"] = true;
     }
 
     // Search query (businessName, tagline, about, district, division, serviceAreas)
@@ -626,24 +639,104 @@ const deleteDecorator = async (req, res) => {
 const getDecoratorStats = async (req, res) => {
   try {
     const total = await decoratorCollection.countDocuments({});
-    const active = await decoratorCollection.countDocuments({ status: "active" });
     const pending = await decoratorCollection.countDocuments({ status: "pending" });
     const suspended = await decoratorCollection.countDocuments({ status: "suspended" });
-    const verified = await decoratorCollection.countDocuments({ "verification.isVerified": true });
+    const active = await decoratorCollection.countDocuments({
+      $or: [
+        { status: "active" },
+        { status: { $exists: false } },
+        { status: null },
+        { status: "" },
+      ],
+    });
+    const verified = await decoratorCollection.countDocuments({
+      $or: [{ "verification.isVerified": true }, { verification: { $exists: false } }],
+    });
     const featured = await decoratorCollection.countDocuments({ featured: true });
 
-    const divisionStats = await decoratorCollection
+    // Detailed aggregation with normalized status and division
+    const detailedAggregation = await decoratorCollection
       .aggregate([
         {
-          $group: {
-            _id: { $ifNull: ["$contactInfo.division", "Dhaka"] },
-            count: { $sum: 1 },
-            avgRating: { $avg: "$metrics.rating" },
+          $project: {
+            status: {
+              $cond: [
+                {
+                  $or: [
+                    { $eq: ["$status", "pending"] },
+                    { $eq: ["$status", "suspended"] },
+                  ],
+                },
+                "$status",
+                "active",
+              ],
+            },
+            isVerified: {
+              $cond: [
+                { $eq: ["$verification.isVerified", true] },
+                true,
+                false,
+              ],
+            },
+            featured: {
+              $cond: [
+                { $eq: ["$featured", true] },
+                true,
+                false,
+              ],
+            },
+            division: {
+              $ifNull: ["$contactInfo.division", { $ifNull: ["$division", "Dhaka"] }],
+            },
           },
         },
-        { $sort: { count: -1 } },
+        {
+          $group: {
+            _id: {
+              status: "$status",
+              isVerified: "$isVerified",
+              featured: "$featured",
+              division: "$division",
+            },
+            count: { $sum: 1 },
+          },
+        },
       ])
       .toArray();
+
+    const byStatus = {
+      active: { divisions: {} },
+      pending: { divisions: {} },
+      suspended: { divisions: {} },
+      verified: { divisions: {} },
+      featured: { divisions: {} },
+    };
+    const overallDivisions = {};
+
+    detailedAggregation.forEach(({ _id, count }) => {
+      const { status, isVerified, featured, division } = _id;
+      if (!division) return;
+
+      overallDivisions[division] = (overallDivisions[division] || 0) + count;
+
+      if (status && byStatus[status]) {
+        byStatus[status].divisions[division] =
+          (byStatus[status].divisions[division] || 0) + count;
+      }
+      if (isVerified) {
+        byStatus.verified.divisions[division] =
+          (byStatus.verified.divisions[division] || 0) + count;
+      }
+      if (featured) {
+        byStatus.featured.divisions[division] =
+          (byStatus.featured.divisions[division] || 0) + count;
+      }
+    });
+
+    const divisionStats = Object.entries(overallDivisions).map(([div, count]) => ({
+      _id: div,
+      count,
+    }));
 
     res.send({
       success: true,
@@ -655,6 +748,7 @@ const getDecoratorStats = async (req, res) => {
         verified,
         featured,
         byDivision: divisionStats,
+        byStatus,
       },
     });
   } catch (error) {

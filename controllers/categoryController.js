@@ -395,6 +395,208 @@ const deleteCategory = async (req, res) => {
   }
 };
 
+// ========== Bulk Delete Categories (Admin Only) ==========
+// Deletes multiple categories by their IDs
+const bulkDeleteCategories = async (req, res) => {
+  try {
+    const ids = req.body.ids || req.body.categoryIds || [];
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).send({
+        success: false,
+        message: "Array of category IDs is required",
+      });
+    }
+
+    const validIds = ids
+      .filter((id) => ObjectId.isValid(id))
+      .map((id) => new ObjectId(id));
+
+    if (validIds.length === 0) {
+      return res.status(400).send({
+        success: false,
+        message: "No valid category IDs provided",
+      });
+    }
+
+    const result = await categoryCollection.deleteMany({
+      _id: { $in: validIds },
+    });
+
+    res.send({
+      success: true,
+      message: `Successfully deleted ${result.deletedCount} categories`,
+      deletedCount: result.deletedCount,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error deleting categories",
+      error: error.message,
+    });
+  }
+};
+
+// ========== Reorder Categories (Admin Only) ==========
+// Updates orders of multiple categories in batch
+const reorderCategories = async (req, res) => {
+  try {
+    const { orders } = req.body;
+    if (!Array.isArray(orders) || orders.length === 0) {
+      return res.status(400).send({
+        success: false,
+        message: "Orders array is required with { id, order } items",
+      });
+    }
+
+    const operations = orders
+      .filter((item) => ObjectId.isValid(item.id))
+      .map((item) => ({
+        updateOne: {
+          filter: { _id: new ObjectId(item.id) },
+          update: {
+            $set: {
+              order: Number(item.order),
+              updatedAt: new Date(),
+            },
+          },
+        },
+      }));
+
+    if (operations.length > 0) {
+      await categoryCollection.bulkWrite(operations);
+    }
+
+    res.send({
+      success: true,
+      message: "Categories reordered successfully",
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error reordering categories",
+      error: error.message,
+    });
+  }
+};
+
+// ========== Bulk Delete SubCategories (Admin Only) ==========
+// Removes multiple subcategories from a category
+const bulkDeleteSubCategories = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ success: false, message: "Invalid category ID format" });
+    }
+
+    const subIds = req.body.subIds || req.body.ids || [];
+    if (!Array.isArray(subIds) || subIds.length === 0) {
+      return res.status(400).send({
+        success: false,
+        message: "Array of subcategory IDs is required",
+      });
+    }
+
+    // Match both string and numeric IDs
+    const numericSubIds = subIds
+      .filter((s) => !isNaN(Number(s)))
+      .map((s) => Number(s));
+    const allMatchingIds = [...new Set([...subIds, ...numericSubIds])];
+
+    const result = await categoryCollection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $pull: {
+          subCategories: {
+            id: { $in: allMatchingIds },
+          },
+        },
+        $set: { updatedAt: new Date() },
+      }
+    );
+
+    if (result.matchedCount === 0) {
+      return res.status(404).send({ success: false, message: "Category not found" });
+    }
+
+    res.send({
+      success: true,
+      message: `Subcategories deleted successfully`,
+      modifiedCount: result.modifiedCount,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error deleting subcategories",
+      error: error.message,
+    });
+  }
+};
+
+// ========== Reorder SubCategories (Admin Only) ==========
+// Updates orders of subcategories within a category
+const reorderSubCategories = async (req, res) => {
+  try {
+    const { id } = req.params;
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ success: false, message: "Invalid category ID format" });
+    }
+
+    const { subcategoryOrders, orders } = req.body;
+    const orderList = subcategoryOrders || orders;
+
+    if (!Array.isArray(orderList) || orderList.length === 0) {
+      return res.status(400).send({
+        success: false,
+        message: "subcategoryOrders array is required",
+      });
+    }
+
+    const category = await categoryCollection.findOne({ _id: new ObjectId(id) });
+    if (!category) {
+      return res.status(404).send({ success: false, message: "Category not found" });
+    }
+
+    const orderMap = new Map();
+    orderList.forEach((item) => {
+      orderMap.set(String(item.id), Number(item.order));
+    });
+
+    const currentSubs = category.subCategories || [];
+    const updatedSubs = currentSubs.map((sub) => {
+      const newOrder = orderMap.get(String(sub.id));
+      return {
+        ...sub,
+        order: newOrder !== undefined ? newOrder : sub.order,
+      };
+    });
+
+    // Sort by order ascending
+    updatedSubs.sort((a, b) => (Number(a.order) || 0) - (Number(b.order) || 0));
+
+    await categoryCollection.updateOne(
+      { _id: new ObjectId(id) },
+      {
+        $set: {
+          subCategories: updatedSubs,
+          updatedAt: new Date(),
+        },
+      }
+    );
+
+    res.send({
+      success: true,
+      message: "Subcategories reordered successfully",
+      data: updatedSubs,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error reordering subcategories",
+      error: error.message,
+    });
+  }
+};
+
 module.exports = {
   getAllCategories,
   getCategoryById,
@@ -404,4 +606,8 @@ module.exports = {
   updateSubCategory,
   deleteSubCategory,
   deleteCategory,
+  bulkDeleteCategories,
+  reorderCategories,
+  bulkDeleteSubCategories,
+  reorderSubCategories,
 };

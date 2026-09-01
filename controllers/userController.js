@@ -284,7 +284,7 @@ const deleteUser = async (req, res) => {
 };
 
 // ========== Get User Statistics (Admin) ==========
-// Returns total counts categorized by role and division
+// Returns total counts categorized by role, division, district, and cross-combinations
 const getUserStats = async (req, res) => {
   try {
     const totalUsers = await userCollection.countDocuments();
@@ -293,57 +293,71 @@ const getUserStats = async (req, res) => {
     const agentCount = await userCollection.countDocuments({ role: "agent" });
     const customerCount = await userCollection.countDocuments({ role: "customer" });
 
-    // Aggregate counts by division
-    const divisionAggregation = await userCollection
+    // Aggregate counts by role, division, and district
+    const detailedAggregation = await userCollection
       .aggregate([
         {
-          $match: {
-            "address.division": { $exists: true, $nin: [null, ""] },
-          },
-        },
-        {
           $group: {
-            _id: "$address.division",
+            _id: {
+              role: "$role",
+              division: "$address.division",
+              district: "$address.district",
+            },
             count: { $sum: 1 },
           },
-        },
-        {
-          $sort: { _id: 1 },
         },
       ])
       .toArray();
 
     const divisions = {};
-    divisionAggregation.forEach((item) => {
-      if (item._id && typeof item._id === "string") {
-        divisions[item._id] = item.count;
-      }
-    });
-
-    // Aggregate counts by district
-    const districtAggregation = await userCollection
-      .aggregate([
-        {
-          $match: {
-            "address.district": { $exists: true, $nin: [null, ""] },
-          },
-        },
-        {
-          $group: {
-            _id: "$address.district",
-            count: { $sum: 1 },
-          },
-        },
-        {
-          $sort: { _id: 1 },
-        },
-      ])
-      .toArray();
-
     const districts = {};
-    districtAggregation.forEach((item) => {
-      if (item._id && typeof item._id === "string") {
-        districts[item._id] = item.count;
+    const byRole = {
+      admin: { divisions: {}, districts: {}, divisionDistricts: {} },
+      decorator: { divisions: {}, districts: {}, divisionDistricts: {} },
+      agent: { divisions: {}, districts: {}, divisionDistricts: {} },
+      customer: { divisions: {}, districts: {}, divisionDistricts: {} },
+    };
+    const divisionDistricts = {};
+
+    detailedAggregation.forEach(({ _id, count }) => {
+      const role = _id?.role && typeof _id.role === "string" ? _id.role.trim() : null;
+      const division = _id?.division && typeof _id.division === "string" ? _id.division.trim() : null;
+      const district = _id?.district && typeof _id.district === "string" ? _id.district.trim() : null;
+
+      // Overall divisions count
+      if (division) {
+        divisions[division] = (divisions[division] || 0) + count;
+      }
+
+      // Overall districts count
+      if (district) {
+        districts[district] = (districts[district] || 0) + count;
+      }
+
+      // Overall division -> district breakdown
+      if (division && district) {
+        if (!divisionDistricts[division]) divisionDistricts[division] = {};
+        divisionDistricts[division][district] = (divisionDistricts[division][district] || 0) + count;
+      }
+
+      // Cross-aggregation by role
+      if (role) {
+        if (!byRole[role]) {
+          byRole[role] = { divisions: {}, districts: {}, divisionDistricts: {} };
+        }
+        if (division) {
+          byRole[role].divisions[division] = (byRole[role].divisions[division] || 0) + count;
+          if (district) {
+            if (!byRole[role].divisionDistricts[division]) {
+              byRole[role].divisionDistricts[division] = {};
+            }
+            byRole[role].divisionDistricts[division][district] =
+              (byRole[role].divisionDistricts[division][district] || 0) + count;
+          }
+        }
+        if (district) {
+          byRole[role].districts[district] = (byRole[role].districts[district] || 0) + count;
+        }
       }
     });
 
@@ -357,6 +371,8 @@ const getUserStats = async (req, res) => {
       },
       divisions,
       districts,
+      byRole,
+      divisionDistricts,
     });
   } catch (error) {
     res.status(500).send({ message: "Error fetching user stats", error: error.message });

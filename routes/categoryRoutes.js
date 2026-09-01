@@ -14,11 +14,22 @@ router.get("/:id", categoryController.getCategoryById);
 
 // ========== Admin Protected Endpoints ==========
 
+// Reorder categories (must precede /:id)
+router.patch("/reorder", verifyFbToken, verifyAdmin, categoryController.reorderCategories);
+
+// Bulk delete categories (must precede /:id)
+router.post("/bulk-delete", verifyFbToken, verifyAdmin, categoryController.bulkDeleteCategories);
+router.delete("/bulk", verifyFbToken, verifyAdmin, categoryController.bulkDeleteCategories);
+
 // Create a new main category
 router.post("/", verifyFbToken, verifyAdmin, categoryController.createCategory);
 
-// Update a category by ID
-router.patch("/:id", verifyFbToken, verifyAdmin, categoryController.updateCategory);
+// Reorder subcategories inside a category (must precede /:id/subcategories/:subId)
+router.patch("/:id/subcategories/reorder", verifyFbToken, verifyAdmin, categoryController.reorderSubCategories);
+
+// Bulk delete subcategories inside a category (must precede /:id/subcategories/:subId)
+router.post("/:id/subcategories/bulk-delete", verifyFbToken, verifyAdmin, categoryController.bulkDeleteSubCategories);
+router.delete("/:id/subcategories/bulk", verifyFbToken, verifyAdmin, categoryController.bulkDeleteSubCategories);
 
 // Add a subcategory to a category
 router.post("/:id/subcategories", verifyFbToken, verifyAdmin, categoryController.addSubCategory);
@@ -28,6 +39,9 @@ router.patch("/:id/subcategories/:subId", verifyFbToken, verifyAdmin, categoryCo
 
 // Delete a subcategory from a category
 router.delete("/:id/subcategories/:subId", verifyFbToken, verifyAdmin, categoryController.deleteSubCategory);
+
+// Update a category by ID
+router.patch("/:id", verifyFbToken, verifyAdmin, categoryController.updateCategory);
 
 // Delete a full category
 router.delete("/:id", verifyFbToken, verifyAdmin, categoryController.deleteCategory);
