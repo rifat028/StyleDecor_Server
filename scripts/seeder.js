@@ -40,10 +40,11 @@ const syncFirebaseAuthUsers = async (users) => {
           let fbUser;
           try {
             fbUser = await admin.auth().getUserByEmail(u.email);
-            // Ensure universal password is set
+            // Ensure universal password, display name, and photo URL are synchronized
             await admin.auth().updateUser(fbUser.uid, {
               password: DEFAULT_PASSWORD,
               displayName: u.name || undefined,
+              photoURL: u.photoUrl || undefined,
             });
           } catch (getErr) {
             if (getErr.code === "auth/user-not-found") {

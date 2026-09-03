@@ -224,6 +224,7 @@ function generateUsers(counts, auth, dates, decoratorGeos, startDate, currentDat
         userDoc,
         agentJoinDate,
         assignedDistrict,
+        assignedDivision: distInfo.division,
       });
 
       agentCounter++;
@@ -344,10 +345,20 @@ function generateAgents(agentUserMap, decorators, activePercentage) {
     "Bridal Entryway & Photobooth Styling",
   ];
 
-  return agentUserMap.map(({ decoratorIndex, userDoc, agentJoinDate, assignedDistrict }, idx) => {
+  return agentUserMap.map(({ decoratorIndex, userDoc, agentJoinDate, assignedDistrict, assignedDivision }, idx) => {
     const agentId = createObjectId("66be18a4f2c4a91b88", idx + 1);
     const parentDecorator = decorators[decoratorIndex];
-    const isActive = (idx % 100) < activePercentage;
+
+    // Status: available (60%), assigned (30%), suspended (10%)
+    let status;
+    const mod = idx % 10;
+    if (mod === 0) {
+      status = "suspended";
+    } else if (mod <= 3) {
+      status = "assigned";
+    } else {
+      status = "available";
+    }
 
     return {
       _id: agentId,
@@ -360,15 +371,16 @@ function generateAgents(agentUserMap, decorators, activePercentage) {
       specialization: specializations[idx % specializations.length],
       experienceYears: 1 + (idx % 8),
       assignedArea: {
+        division: assignedDivision || "Dhaka",
         district: assignedDistrict,
         zones: ["Sector 1", "Main Town", "Commercial Zone"],
       },
       metrics: {
         rating: +(4.2 + (idx % 8) * 0.1).toFixed(1),
         completedEvents: 15 + (idx % 40),
-        activeAssignedBookings: isActive ? 1 : 0,
+        activeAssignedBookings: status === "assigned" ? 1 : 0,
       },
-      status: isActive ? "active" : "inactive",
+      status,
       createdAt: agentJoinDate,
       updatedAt: agentJoinDate,
     };

@@ -476,6 +476,7 @@ const getAgents = async (req, res) => {
       status,
       district,
       division,
+      territory,
       city,
       specialization,
       search,
@@ -484,35 +485,66 @@ const getAgents = async (req, res) => {
       limit = 12,
     } = req.query;
 
-    const query = {};
+    const andConditions = [];
 
-    if (status && status !== "all") query.status = status;
+    if (status && status !== "all") {
+      if (status === "available") {
+        andConditions.push({ status: { $in: ["available", "active"] } });
+      } else if (status === "assigned" || status === "on_assignment") {
+        andConditions.push({ status: { $in: ["assigned", "on_assignment"] } });
+      } else if (status === "suspended") {
+        andConditions.push({ status: "suspended" });
+      } else {
+        andConditions.push({ status });
+      }
+    }
+
     if (decoratorId && ObjectId.isValid(decoratorId)) {
-      query.decoratorId = new ObjectId(decoratorId);
+      andConditions.push({ decoratorId: new ObjectId(decoratorId) });
     }
+
+    const territoryVal = division || territory;
+    if (territoryVal && territoryVal !== "all") {
+      andConditions.push({
+        $or: [
+          { "assignedArea.division": { $regex: `^${territoryVal}$`, $options: "i" } },
+          { "assignedArea.district": { $regex: `^${territoryVal}$`, $options: "i" } },
+        ],
+      });
+    } else if (city && city !== "all") {
+      andConditions.push({
+        $or: [
+          { "assignedArea.division": { $regex: `^${city}$`, $options: "i" } },
+          { "assignedArea.district": { $regex: `^${city}$`, $options: "i" } },
+          { "assignedArea.city": { $regex: `^${city}$`, $options: "i" } },
+        ],
+      });
+    }
+
     if (district && district !== "all") {
-      query["assignedArea.district"] = district;
+      andConditions.push({ "assignedArea.district": { $regex: `^${district}$`, $options: "i" } });
     }
-    if (city && city !== "all") {
-      query.$or = [
-        { "assignedArea.district": city },
-        { "assignedArea.city": city },
-      ];
-    }
+
     if (specialization && specialization !== "all") {
-      query.specialization = { $regex: specialization, $options: "i" };
+      andConditions.push({ specialization: { $regex: specialization, $options: "i" } });
     }
 
     if (search && search.trim()) {
       const q = search.trim();
-      query.$or = [
-        { name: { $regex: q, $options: "i" } },
-        { email: { $regex: q, $options: "i" } },
-        { phone: { $regex: q, $options: "i" } },
-        { designation: { $regex: q, $options: "i" } },
-        { specialization: { $regex: q, $options: "i" } },
-      ];
+      andConditions.push({
+        $or: [
+          { name: { $regex: q, $options: "i" } },
+          { email: { $regex: q, $options: "i" } },
+          { phone: { $regex: q, $options: "i" } },
+          { designation: { $regex: q, $options: "i" } },
+          { specialization: { $regex: q, $options: "i" } },
+          { "assignedArea.division": { $regex: q, $options: "i" } },
+          { "assignedArea.district": { $regex: q, $options: "i" } },
+        ],
+      });
     }
+
+    const query = andConditions.length > 0 ? { $and: andConditions } : {};
 
     let sortObj = { "metrics.rating": -1, _id: 1 };
     if (sort === "experience") sortObj = { experienceYears: -1 };
@@ -557,8 +589,8 @@ const getAgentStats = async (req, res) => {
 
     const totalAgents = allAgents.length;
     const availableCount = allAgents.filter((a) => a.status === "available" || a.status === "active").length;
-    const onAssignmentCount = allAgents.filter((a) => a.status === "on_assignment" || a.status === "assigned").length;
-    const offDutyCount = allAgents.filter((a) => a.status === "off_duty" || a.status === "on_leave" || a.status === "inactive" || a.status === "suspended").length;
+    const onAssignmentCount = allAgents.filter((a) => a.status === "assigned" || a.status === "on_assignment").length;
+    const suspendedCount = allAgents.filter((a) => a.status === "suspended").length;
 
     const totalCompletedEvents = allAgents.reduce((sum, a) => sum + (a.metrics?.completedEvents || 0), 0);
     const avgRating = totalAgents > 0
@@ -571,7 +603,8 @@ const getAgentStats = async (req, res) => {
         totalAgents,
         availableCount,
         onAssignmentCount,
-        offDutyCount,
+        assignedCount: onAssignmentCount,
+        suspendedCount,
         totalCompletedEvents,
         avgRating: Number(avgRating),
       },
@@ -770,7 +803,7 @@ const updateAgentStatus = async (req, res) => {
       return res.status(400).send({ success: false, message: "Invalid agent ID" });
     }
 
-    const allowed = ["available", "on_assignment", "off_duty", "on_leave", "suspended", "active"];
+    const allowed = ["available", "assigned", "on_assignment", "off_duty", "on_leave", "suspended", "active"];
     if (!allowed.includes(status)) {
       return res.status(400).send({
         success: false,
@@ -800,6 +833,15 @@ const updateAgentStatus = async (req, res) => {
 // ========== 14. Delete Agent (Admin / Decorator) ==========
 const deleteAgent = async (req, res) => {
   try {
+    const userEmail = req.decoded_email;
+    const user = await userCollection.findOne({ email: userEmail });
+    if (user?.role === "admin") {
+      return res.status(403).send({
+        success: false,
+        message: "Administrators are not permitted to delete field agents",
+      });
+    }
+
     const { id } = req.params;
     if (!ObjectId.isValid(id)) {
       return res.status(400).send({ success: false, message: "Invalid agent ID" });
