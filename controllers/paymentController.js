@@ -278,6 +278,26 @@ const getPaymentStats = async (req, res) => {
     const platformVolume = platformFeePayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
     const agentVolume = agentFeePayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
+    // Aggregate payment counts by decorator and payment type
+    const decoratorStats = {};
+    allPayments.forEach((p) => {
+      const decId = (p.sender?.decoratorId || p.receiver?.decoratorId || p.decoratorId)?.toString();
+      if (!decId) return;
+      if (!decoratorStats[decId]) {
+        decoratorStats[decId] = {
+          total: 0,
+          advance_payment: 0,
+          full_payment: 0,
+          platform_fee: 0,
+          agent_fee: 0,
+        };
+      }
+      decoratorStats[decId].total += 1;
+      if (p.paymentType && decoratorStats[decId][p.paymentType] !== undefined) {
+        decoratorStats[decId][p.paymentType] += 1;
+      }
+    });
+
     res.send({
       success: true,
       stats: {
@@ -305,6 +325,8 @@ const getPaymentStats = async (req, res) => {
         fullCount: fullPayments.length,
         platformCount: platformFeePayments.length,
         agentCount: agentFeePayments.length,
+        // Detailed decorator counts mapped by decoratorId and paymentType
+        decoratorStats,
         // Backward compatibility metrics for Analytics dashboard
         platformCommission: platformVolume,
         vendorReceivables: fullVolume - platformVolume,
