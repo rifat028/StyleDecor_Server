@@ -648,6 +648,7 @@ const getAllReviewsAdmin = async (req, res) => {
       decoratorId,
       agentId,
       rating,
+      sort = "newest",
       page = 1,
       limit = 20,
     } = req.query;
@@ -676,6 +677,16 @@ const getAllReviewsAdmin = async (req, res) => {
       ];
     }
 
+    // Dynamic sorting
+    let sortObj = { createdAt: -1 };
+    if (sort === "highest_rating") {
+      sortObj = { rating: -1, createdAt: -1 };
+    } else if (sort === "lowest_rating") {
+      sortObj = { rating: 1, createdAt: -1 };
+    } else if (sort === "oldest") {
+      sortObj = { createdAt: 1 };
+    }
+
     const pageNum = Math.max(1, parseInt(page, 10));
     const limitNum = Math.max(1, parseInt(limit, 10));
     const skip = (pageNum - 1) * limitNum;
@@ -683,18 +694,40 @@ const getAllReviewsAdmin = async (req, res) => {
     const totalCount = await reviewCollection.countDocuments(query);
     const reviews = await reviewCollection
       .find(query)
-      .sort({ createdAt: -1 })
+      .sort(sortObj)
       .skip(skip)
       .limit(limitNum)
       .toArray();
 
-    // Summary counts for tabs
-    const [totalAll, publishedCount, hiddenCount, flaggedCount] = await Promise.all([
-      reviewCollection.countDocuments({}),
-      reviewCollection.countDocuments({ status: "published" }),
-      reviewCollection.countDocuments({ status: "hidden" }),
-      reviewCollection.countDocuments({ status: "flagged" }),
-    ]);
+    // Summary counts for tabs and decorators
+    const allReviews = await reviewCollection.find({}).toArray();
+    const decoratorStats = {};
+    let publishedCount = 0;
+    let hiddenCount = 0;
+    let flaggedCount = 0;
+
+    allReviews.forEach((r) => {
+      if (r.status === "published") publishedCount++;
+      else if (r.status === "hidden") hiddenCount++;
+      else if (r.status === "flagged") flaggedCount++;
+
+      const decId = r.decoratorId?.toString();
+      if (!decId) return;
+      if (!decoratorStats[decId]) {
+        decoratorStats[decId] = {
+          total: 0,
+          published: 0,
+          hidden: 0,
+          flagged: 0,
+        };
+      }
+      decoratorStats[decId].total += 1;
+      if (r.status && decoratorStats[decId][r.status] !== undefined) {
+        decoratorStats[decId][r.status] += 1;
+      }
+    });
+
+    const totalAll = allReviews.length;
 
     res.send({
       success: true,
@@ -712,6 +745,7 @@ const getAllReviewsAdmin = async (req, res) => {
         published: publishedCount,
         hidden: hiddenCount,
         flagged: flaggedCount,
+        decoratorStats,
       },
       data: reviews,
     });
