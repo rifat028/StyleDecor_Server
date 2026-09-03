@@ -592,6 +592,31 @@ const getAgentStats = async (req, res) => {
     const onAssignmentCount = allAgents.filter((a) => a.status === "assigned" || a.status === "on_assignment").length;
     const suspendedCount = allAgents.filter((a) => a.status === "suspended").length;
 
+    // Aggregate territory (division) breakdowns: overall and by status
+    const divisions = {};
+    const byStatus = {
+      available: { divisions: {} },
+      assigned: { divisions: {} },
+      suspended: { divisions: {} },
+    };
+
+    allAgents.forEach((a) => {
+      const division = a.assignedArea?.division || "Dhaka";
+      const s = String(a.status || "").toLowerCase();
+      let normalizedStatus = "available";
+      if (s === "suspended") {
+        normalizedStatus = "suspended";
+      } else if (s === "assigned" || s === "on_assignment") {
+        normalizedStatus = "assigned";
+      } else {
+        normalizedStatus = "available";
+      }
+
+      divisions[division] = (divisions[division] || 0) + 1;
+      byStatus[normalizedStatus].divisions[division] =
+        (byStatus[normalizedStatus].divisions[division] || 0) + 1;
+    });
+
     const totalCompletedEvents = allAgents.reduce((sum, a) => sum + (a.metrics?.completedEvents || 0), 0);
     const avgRating = totalAgents > 0
       ? (allAgents.reduce((sum, a) => sum + (Number(a.metrics?.rating) || 4.5), 0) / totalAgents).toFixed(2)
@@ -607,6 +632,8 @@ const getAgentStats = async (req, res) => {
         suspendedCount,
         totalCompletedEvents,
         avgRating: Number(avgRating),
+        divisions,
+        byStatus,
       },
     });
   } catch (error) {
