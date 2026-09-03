@@ -582,7 +582,14 @@ const deleteService = async (req, res) => {
       return res.status(404).send({ success: false, message: "Service not found" });
     }
 
-    // Permission Check
+    // Permission Check: Admin cannot delete services
+    if (user?.role === "admin") {
+      return res.status(403).send({
+        success: false,
+        message: "Administrators are not permitted to delete services",
+      });
+    }
+
     if (user.role === "decorator") {
       const myDec = await decoratorCollection.findOne({ userId: user._id });
       if (!myDec || !existingService.decoratorId.equals(myDec._id)) {
