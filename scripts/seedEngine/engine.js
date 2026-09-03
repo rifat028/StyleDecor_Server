@@ -767,6 +767,13 @@ function generateBookingsPaymentsAndReviews(decorators, services, agents, custom
         const comment = REVIEW_COMMENTS[reviewCounter % REVIEW_COMMENTS.length];
         const reviewDate = new Date(eventDate.getTime() + 12 * 60 * 60 * 1000);
 
+        let reviewStatus = "published";
+        if (reviewCounter % 29 === 0) {
+          reviewStatus = "hidden";
+        } else if (reviewCounter % 37 === 0) {
+          reviewStatus = "flagged";
+        }
+
         reviews.push({
           _id: reviewId,
           bookingId: bookingDoc._id,
@@ -783,7 +790,7 @@ function generateBookingsPaymentsAndReviews(decorators, services, agents, custom
           images: [],
           vendorReply: reviewCounter % 3 === 0 ? "Thank you for trusting StyleDecor! It was an absolute pleasure creating this stage for you." : null,
           isVerifiedBooking: true,
-          status: "published",
+          status: reviewStatus,
           featured: reviewCounter % 5 === 0,
           createdAt: reviewDate,
           updatedAt: reviewDate,

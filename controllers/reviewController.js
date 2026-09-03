@@ -689,7 +689,8 @@ const getAllReviewsAdmin = async (req, res) => {
       .toArray();
 
     // Summary counts for tabs
-    const [publishedCount, hiddenCount, flaggedCount] = await Promise.all([
+    const [totalAll, publishedCount, hiddenCount, flaggedCount] = await Promise.all([
+      reviewCollection.countDocuments({}),
       reviewCollection.countDocuments({ status: "published" }),
       reviewCollection.countDocuments({ status: "hidden" }),
       reviewCollection.countDocuments({ status: "flagged" }),
@@ -702,7 +703,12 @@ const getAllReviewsAdmin = async (req, res) => {
       limit: limitNum,
       totalPages: Math.max(1, Math.ceil(totalCount / limitNum)),
       stats: {
-        all: await reviewCollection.countDocuments({}),
+        totalReviews: totalAll,
+        publishedCount,
+        hiddenCount,
+        flaggedCount,
+        all: totalAll,
+        total: totalAll,
         published: publishedCount,
         hidden: hiddenCount,
         flagged: flaggedCount,
