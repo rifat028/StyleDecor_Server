@@ -305,6 +305,13 @@ const getPaymentStats = async (req, res) => {
         fullCount: fullPayments.length,
         platformCount: platformFeePayments.length,
         agentCount: agentFeePayments.length,
+        // Backward compatibility metrics for Analytics dashboard
+        platformCommission: platformVolume,
+        vendorReceivables: fullVolume - platformVolume,
+        gatewayFees: Math.round(totalVolume * 0.015),
+        totalRefunded: 0,
+        completedTransactionsCount: fullPayments.length + advancePayments.length,
+        totalTransactionsCount: allPayments.length,
       },
     });
   } catch (error) {
