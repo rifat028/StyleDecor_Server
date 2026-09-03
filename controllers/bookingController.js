@@ -77,56 +77,62 @@ const getBookings = async (req, res) => {
       limit = 10,
     } = req.query;
 
-    const query = {};
+    const andConditions = [];
 
     // 1. Status Filter
     if (status && status !== "all") {
-      query.status = status;
+      andConditions.push({ status });
     }
 
     // 2. Payment Status Filter
     if (paymentStatus && paymentStatus !== "all") {
-      query.paymentStatus = paymentStatus;
+      andConditions.push({ paymentStatus });
     }
 
     // Legacy paid filter fallback
-    if (paid === "true") query.$or = [{ paymentStatus: "paid" }, { paid: true }];
-    if (paid === "false") query.$or = [{ paymentStatus: { $ne: "paid" } }, { paid: false }];
+    if (paid === "true") andConditions.push({ $or: [{ paymentStatus: "paid" }, { paid: true }] });
+    if (paid === "false") andConditions.push({ $or: [{ paymentStatus: { $ne: "paid" } }, { paid: false }] });
 
     // 3. Decorator Filter
     if (decoratorId && ObjectId.isValid(decoratorId)) {
-      query.$or = [
-        { decoratorId: new ObjectId(decoratorId) },
-        { assignTo: decoratorId },
-      ];
+      andConditions.push({
+        $or: [
+          { decoratorId: new ObjectId(decoratorId) },
+          { assignTo: decoratorId },
+        ],
+      });
     }
 
     // Legacy assigned filter fallback
-    if (assigned === "true") query.$or = [{ decoratorId: { $exists: true, $ne: null } }, { assigned: true }];
-    if (assigned === "false") query.$or = [{ decoratorId: null }, { assigned: false }, { assignTo: { $exists: false } }];
+    if (assigned === "true") andConditions.push({ $or: [{ decoratorId: { $exists: true, $ne: null } }, { assigned: true }] });
+    if (assigned === "false") andConditions.push({ $or: [{ decoratorId: null }, { assigned: false }, { assignTo: { $exists: false } }] });
 
     // 4. Customer Filter
     if (customerId && ObjectId.isValid(customerId)) {
-      query.customerId = new ObjectId(customerId);
+      andConditions.push({ customerId: new ObjectId(customerId) });
     }
 
     // 5. Agent Filter
     if (assignedAgentId && ObjectId.isValid(assignedAgentId)) {
-      query.assignedAgentId = new ObjectId(assignedAgentId);
+      andConditions.push({ assignedAgentId: new ObjectId(assignedAgentId) });
     }
 
     // 6. Search Filter
     if (search && search.trim() !== "") {
       const regex = { $regex: search.trim(), $options: "i" };
-      query.$or = [
-        { bookingCode: regex },
-        { "serviceSnapshot.title": regex },
-        { "eventDetails.venueName": regex },
-        { "eventDetails.venueAddress": regex },
-        { clientName: regex },
-        { clientEmail: regex },
-      ];
+      andConditions.push({
+        $or: [
+          { bookingCode: regex },
+          { "serviceSnapshot.title": regex },
+          { "eventDetails.venueName": regex },
+          { "eventDetails.venueAddress": regex },
+          { clientName: regex },
+          { clientEmail: regex },
+        ],
+      });
     }
+
+    const query = andConditions.length > 0 ? { $and: andConditions } : {};
 
     // 7. Sorting
     let sortObj = { createdAt: -1, _id: -1 };
@@ -610,12 +616,18 @@ const getBookingStats = async (req, res) => {
     const allBookings = await bookingCollection.find({}).toArray();
 
     const total = allBookings.length;
+    const preparing = allBookings.filter((b) => b.status === "preparing").length;
+    const out_for_destination = allBookings.filter(
+      (b) => b.status === "out_for_destination" || b.status === "on_the_way"
+    ).length;
+    const in_progress = allBookings.filter((b) => b.status === "in_progress").length;
+    const completed = allBookings.filter((b) => b.status === "completed").length;
+    const cancelled = allBookings.filter((b) => b.status === "cancelled").length;
+
+    // Legacy/fallback counts
     const pending = allBookings.filter((b) => b.status === "pending" || b.status === "draft").length;
     const accepted = allBookings.filter((b) => b.status === "accepted").length;
     const advancePaid = allBookings.filter((b) => b.status === "advance_paid").length;
-    const inProgress = allBookings.filter((b) => b.status === "preparing" || b.status === "on_the_way" || b.status === "in_progress").length;
-    const completed = allBookings.filter((b) => b.status === "completed").length;
-    const cancelled = allBookings.filter((b) => b.status === "cancelled").length;
 
     // Total gross volume & received revenue
     const totalVolume = allBookings.reduce((sum, b) => {
@@ -632,12 +644,16 @@ const getBookingStats = async (req, res) => {
       success: true,
       stats: {
         total,
+        preparing,
+        out_for_destination,
+        outForDestination: out_for_destination,
+        in_progress,
+        inProgress: in_progress,
+        completed,
+        cancelled,
         pending,
         accepted,
         advancePaid,
-        inProgress,
-        completed,
-        cancelled,
         totalVolume,
         totalRevenueCollected,
       },
