@@ -5,6 +5,7 @@ const {
   bookingCollection,
   userCollection,
   decoratorCollection,
+  agentCollection,
 } = require("../models/collections");
 
 // Initialize Stripe conditionally
@@ -29,41 +30,142 @@ const enrichPayments = async (payments) => {
   if (!Array.isArray(payments) || payments.length === 0) return [];
 
   // Extract unique ObjectIds
-  const customerIds = [...new Set(payments.map((p) => p.customerId?.toString()).filter(Boolean))];
-  const decoratorIds = [...new Set(payments.map((p) => p.decoratorId?.toString()).filter(Boolean))];
   const bookingIds = [...new Set(payments.map((p) => p.bookingId?.toString()).filter(Boolean))];
 
+  const userIds = [
+    ...new Set(
+      payments
+        .flatMap((p) => [
+          p.sender?.userId?.toString(),
+          p.receiver?.userId?.toString(),
+          p.customerId?.toString(),
+        ])
+        .filter(Boolean)
+    ),
+  ];
+
+  const decoratorIds = [
+    ...new Set(
+      payments
+        .flatMap((p) => [
+          p.sender?.decoratorId?.toString(),
+          p.receiver?.decoratorId?.toString(),
+          p.decoratorId?.toString(),
+        ])
+        .filter(Boolean)
+    ),
+  ];
+
+  const agentIds = [
+    ...new Set(
+      payments
+        .flatMap((p) => [
+          p.receiver?.agentId?.toString(),
+          p.agentId?.toString(),
+        ])
+        .filter(Boolean)
+    ),
+  ];
+
   // Batch query related collections in parallel
-  const [customers, decorators, bookings] = await Promise.all([
-    customerIds.length > 0
-      ? userCollection.find({ _id: { $in: customerIds.map((id) => new ObjectId(id)) } }).toArray()
+  const [users, decorators, agents, bookings] = await Promise.all([
+    userIds.length > 0
+      ? userCollection.find({ _id: { $in: userIds.map((id) => new ObjectId(id)) } }).toArray()
       : [],
     decoratorIds.length > 0
       ? decoratorCollection.find({ _id: { $in: decoratorIds.map((id) => new ObjectId(id)) } }).toArray()
+      : [],
+    agentIds.length > 0
+      ? agentCollection.find({ _id: { $in: agentIds.map((id) => new ObjectId(id)) } }).toArray()
       : [],
     bookingIds.length > 0
       ? bookingCollection.find({ _id: { $in: bookingIds.map((id) => new ObjectId(id)) } }).toArray()
       : [],
   ]);
 
-  const customerMap = new Map(customers.map((c) => [c._id.toString(), c]));
+  const userMap = new Map(users.map((u) => [u._id.toString(), u]));
   const decoratorMap = new Map(decorators.map((d) => [d._id.toString(), d]));
+  const agentMap = new Map(agents.map((a) => [a._id.toString(), a]));
   const bookingMap = new Map(bookings.map((b) => [b._id.toString(), b]));
 
   return payments.map((p) => {
-    const cust = p.customerId ? customerMap.get(p.customerId.toString()) : null;
-    const dec = p.decoratorId ? decoratorMap.get(p.decoratorId.toString()) : null;
     const bkg = p.bookingId ? bookingMap.get(p.bookingId.toString()) : null;
+
+    // Resolve sender details
+    let senderDetails = { role: p.sender?.role || "customer", name: "Unknown Sender" };
+    if (p.sender?.role === "customer" || (!p.sender?.role && p.customerId)) {
+      const custUser = userMap.get((p.sender?.userId || p.customerId)?.toString());
+      senderDetails = {
+        role: "customer",
+        name: custUser?.name || "Customer",
+        email: custUser?.email || "",
+        phone: custUser?.phone || "",
+        photoUrl: custUser?.photoUrl || "",
+        district: custUser?.address?.district || "",
+      };
+    } else if (p.sender?.role === "decorator") {
+      const dec = decoratorMap.get(p.sender?.decoratorId?.toString());
+      senderDetails = {
+        role: "decorator",
+        name: dec?.businessName || "Decorator Agency",
+        businessName: dec?.businessName || "Decorator Agency",
+        logo: dec?.logo || "",
+        phone: dec?.contactInfo?.phone || "",
+        district: dec?.contactInfo?.district || "",
+      };
+    }
+
+    // Resolve receiver details
+    let receiverDetails = { role: p.receiver?.role || "decorator", name: "Unknown Receiver" };
+    if (p.receiver?.role === "decorator" || (!p.receiver?.role && p.decoratorId)) {
+      const dec = decoratorMap.get((p.receiver?.decoratorId || p.decoratorId)?.toString());
+      receiverDetails = {
+        role: "decorator",
+        name: dec?.businessName || "Decorator Agency",
+        businessName: dec?.businessName || "Decorator Agency",
+        logo: dec?.logo || "",
+        phone: dec?.contactInfo?.phone || "",
+        district: dec?.contactInfo?.district || "",
+      };
+    } else if (p.receiver?.role === "admin") {
+      const adminUser = userMap.get(p.receiver?.userId?.toString());
+      receiverDetails = {
+        role: "admin",
+        name: adminUser?.name || "System Admin",
+        email: adminUser?.email || "",
+        photoUrl: adminUser?.photoUrl || "",
+      };
+    } else if (p.receiver?.role === "agent") {
+      const agent = agentMap.get(p.receiver?.agentId?.toString());
+      receiverDetails = {
+        role: "agent",
+        name: agent?.name || "Field Agent",
+        phone: agent?.phone || "",
+        photoUrl: agent?.photoUrl || "",
+        district: agent?.assignedArea?.district || "",
+        specialization: agent?.specialization || "",
+      };
+    }
 
     return {
       ...p,
-      customer: cust || {
-        name: p.clientName || "Valued Client",
-        email: p.clientEmail || "",
-        phone: p.clientPhone || "",
+      sender: {
+        ...(p.sender || {}),
+        ...senderDetails,
       },
-      decorator: dec || null,
+      receiver: {
+        ...(p.receiver || {}),
+        ...receiverDetails,
+      },
       booking: bkg || null,
+      // Backward compatibility fields
+      customer: senderDetails.role === "customer" ? senderDetails : null,
+      decorator:
+        receiverDetails.role === "decorator"
+          ? receiverDetails
+          : senderDetails.role === "decorator"
+          ? senderDetails
+          : null,
     };
   });
 };
@@ -72,56 +174,62 @@ const enrichPayments = async (payments) => {
 const getPayments = async (req, res) => {
   try {
     const {
-      status,
-      paymentMethod,
       paymentType,
+      type,
       decoratorId,
-      customerId,
-      bookingId,
+      paymentMethod,
       search,
       sort = "newest",
       page = 1,
       limit = 10,
     } = req.query;
 
-    const query = {};
+    const andConditions = [];
 
-    // Filters
-    if (status && status !== "all") {
-      query.status = status;
+    // Filter by paymentType (advance_payment, full_payment, platform_fee, agent_fee)
+    const selectedType = paymentType || type;
+    if (selectedType && selectedType !== "all") {
+      andConditions.push({ paymentType: selectedType });
     }
+
+    // Filter by paymentMethod
     if (paymentMethod && paymentMethod !== "all") {
-      query.paymentMethod = paymentMethod;
+      andConditions.push({ paymentMethod });
     }
-    if (paymentType && paymentType !== "all") {
-      query.paymentType = paymentType;
-    }
+
+    // Filter by Decorator (can be sender or receiver)
     if (decoratorId && ObjectId.isValid(decoratorId)) {
-      query.decoratorId = new ObjectId(decoratorId);
-    }
-    if (customerId && ObjectId.isValid(customerId)) {
-      query.customerId = new ObjectId(customerId);
-    }
-    if (bookingId && ObjectId.isValid(bookingId)) {
-      query.bookingId = new ObjectId(bookingId);
+      const decObjectId = new ObjectId(decoratorId);
+      andConditions.push({
+        $or: [
+          { "sender.decoratorId": decObjectId },
+          { "receiver.decoratorId": decObjectId },
+          { decoratorId: decObjectId },
+        ],
+      });
     }
 
     // Search Keyword
     if (search && search.trim()) {
       const q = search.trim();
-      query.$or = [
+      const searchOr = [
         { paymentCode: { $regex: q, $options: "i" } },
-        { "gatewayDetails.transactionId": { $regex: q, $options: "i" } },
-        { "gatewayDetails.valId": { $regex: q, $options: "i" } },
-        { clientEmail: { $regex: q, $options: "i" } },
+        { paymentType: { $regex: q, $options: "i" } },
+        { paymentMethod: { $regex: q, $options: "i" } },
       ];
+      if (!isNaN(Number(q))) {
+        searchOr.push({ amount: Number(q) });
+      }
+      andConditions.push({ $or: searchOr });
     }
 
+    const query = andConditions.length > 0 ? { $and: andConditions } : {};
+
     // Sorting
-    let sortObj = { createdAt: -1, _id: -1 };
-    if (sort === "oldest") sortObj = { createdAt: 1, _id: 1 };
-    if (sort === "amount_desc") sortObj = { amount: -1 };
-    if (sort === "amount_asc") sortObj = { amount: 1 };
+    let sortObj = { paidAt: -1, createdAt: -1, _id: -1 };
+    if (sort === "oldest") sortObj = { paidAt: 1, createdAt: 1, _id: 1 };
+    if (sort === "amount_high" || sort === "amount_desc") sortObj = { amount: -1 };
+    if (sort === "amount_low" || sort === "amount_asc") sortObj = { amount: 1 };
 
     const pageNum = Math.max(1, parseInt(page, 10));
     const limitNum = Math.max(1, parseInt(limit, 10));
@@ -157,43 +265,46 @@ const getPayments = async (req, res) => {
 // ========== 2. Get Payment Financial Statistics (Admin & Analytics) ==========
 const getPaymentStats = async (req, res) => {
   try {
-    const allCompletedPayments = await paymentsCollection
-      .find({ status: "completed" })
-      .toArray();
+    const allPayments = await paymentsCollection.find({}).toArray();
 
-    const allRefundedPayments = await paymentsCollection
-      .find({ status: "refunded" })
-      .toArray();
+    const advancePayments = allPayments.filter((p) => p.paymentType === "advance_payment");
+    const fullPayments = allPayments.filter((p) => p.paymentType === "full_payment");
+    const platformFeePayments = allPayments.filter((p) => p.paymentType === "platform_fee");
+    const agentFeePayments = allPayments.filter((p) => p.paymentType === "agent_fee");
 
-    const totalVolume = allCompletedPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
-    const platformCommission = allCompletedPayments.reduce(
-      (sum, p) => sum + (Number(p.breakdown?.platformCommission) || Math.round((p.amount || 0) * 0.10)),
-      0
-    );
-    const vendorReceivables = allCompletedPayments.reduce(
-      (sum, p) => sum + (Number(p.breakdown?.vendorReceivable) || Math.round((p.amount || 0) * 0.885)),
-      0
-    );
-    const gatewayFees = allCompletedPayments.reduce(
-      (sum, p) => sum + (Number(p.breakdown?.gatewayFee) || Math.round((p.amount || 0) * 0.015)),
-      0
-    );
-    const totalRefunded = allRefundedPayments.reduce(
-      (sum, p) => sum + (Number(p.refundDetails?.refundAmount) || Number(p.amount) || 0),
-      0
-    );
+    const totalVolume = allPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const advanceVolume = advancePayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const fullVolume = fullPayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const platformVolume = platformFeePayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
+    const agentVolume = agentFeePayments.reduce((sum, p) => sum + (Number(p.amount) || 0), 0);
 
     res.send({
       success: true,
       stats: {
+        total: allPayments.length,
         totalVolume,
-        platformCommission,
-        vendorReceivables,
-        gatewayFees,
-        totalRefunded,
-        completedTransactionsCount: allCompletedPayments.length,
-        refundedTransactionsCount: allRefundedPayments.length,
-        totalTransactionsCount: allCompletedPayments.length + allRefundedPayments.length,
+        volume: totalVolume,
+        advance_payment: {
+          count: advancePayments.length,
+          volume: advanceVolume,
+        },
+        full_payment: {
+          count: fullPayments.length,
+          volume: fullVolume,
+        },
+        platform_fee: {
+          count: platformFeePayments.length,
+          volume: platformVolume,
+        },
+        agent_fee: {
+          count: agentFeePayments.length,
+          volume: agentVolume,
+        },
+        // Flat counters
+        advanceCount: advancePayments.length,
+        fullCount: fullPayments.length,
+        platformCount: platformFeePayments.length,
+        agentCount: agentFeePayments.length,
       },
     });
   } catch (error) {

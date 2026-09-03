@@ -478,10 +478,12 @@ function generateServices(decorators, defaultDepositPercent) {
 }
 
 // Generates chronological bookings, matching payments, and verified customer reviews
-function generateBookingsPaymentsAndReviews(decorators, services, agents, customerUserList, counts, financials, currentDate) {
+function generateBookingsPaymentsAndReviews(decorators, services, agents, customerUserList, counts, financials, currentDate, adminId) {
   const bookings = [];
   const payments = [];
   const reviews = [];
+
+  const paymentMethods = ["bkash", "nagad", "sslcommerz", "stripe", "bank_transfer"];
 
   let bookingCounter = 1;
   let paymentCounter = 1;
@@ -495,6 +497,9 @@ function generateBookingsPaymentsAndReviews(decorators, services, agents, custom
     const upcomingCount = counts.upcomingBookingsPerDecorator;
     const cancelledCount = counts.cancelledBookingsPerDecorator;
     const completedCount = totalBookings - upcomingCount - cancelledCount;
+
+    let decoratorPlatformFeeCount = 0;
+    const decoratorAgentFeeCounts = {};
 
     for (let b = 0; b < totalBookings; b++) {
       const bookingId = createObjectId("66be18a5f2c4a91b88", bookingCounter);
@@ -593,6 +598,24 @@ function generateBookingsPaymentsAndReviews(decorators, services, agents, custom
         });
       }
 
+      // Settlement tracking field
+      const platformFeeAmount = Math.round(grandTotal * 0.10);
+      const agentFeeAmount = 2000;
+      const settlementStatus = {
+        platformFee: {
+          isPaid: false,
+          amount: platformFeeAmount,
+          paymentId: null,
+          paidAt: null,
+        },
+        agentFee: {
+          isPaid: false,
+          amount: agentFeeAmount,
+          paymentId: null,
+          paidAt: null,
+        },
+      };
+
       const bookingDoc = {
         _id: bookingId,
         bookingCode,
@@ -624,6 +647,7 @@ function generateBookingsPaymentsAndReviews(decorators, services, agents, custom
           paidAmount,
           dueAmount,
         },
+        settlementStatus,
         statusTimeline,
         status,
         paymentStatus,
@@ -634,45 +658,108 @@ function generateBookingsPaymentsAndReviews(decorators, services, agents, custom
 
       bookings.push(bookingDoc);
 
+      // 1. Customer Payment (advance_payment or full_payment)
       if (paidAmount > 0) {
         const paymentId = createObjectId("66be18a6f2c4a91b88", paymentCounter++);
-        const gatewayFee = Math.round((paidAmount * financials.gatewayFeePercent) / 100);
-        const platformCommission = Math.round((paidAmount * financials.platformCommissionPercent) / 100);
-        const vendorReceivable = paidAmount - gatewayFee - platformCommission;
+        const paymentType = paymentStatus === "full_paid" ? "full_payment" : "advance_payment";
+        const paidAt = new Date(bookingCreatedAt.getTime() + 15 * 60 * 1000);
+        const createdAt = new Date(bookingCreatedAt.getTime() + 10 * 60 * 1000);
 
         payments.push({
           _id: paymentId,
           paymentCode: `PAY-${dateStr}-${String(paymentCounter).padStart(4, "0")}`,
           bookingId: bookingDoc._id,
-          customerId: customer._id,
-          decoratorId: decorator._id,
+          paymentType,
+          sender: {
+            role: "customer",
+            userId: customer._id,
+          },
+          receiver: {
+            role: "decorator",
+            decoratorId: decorator._id,
+          },
           amount: paidAmount,
           currency: "BDT",
-          paymentType: paymentStatus === "full_paid" ? "full_payment" : "advance_payment",
-          paymentMethod: paymentCounter % 2 === 0 ? "bkash" : "sslcommerz",
-          gatewayDetails: {
-            gateway: paymentCounter % 2 === 0 ? "bKash" : "SSLCommerz",
-            transactionId: `TRX${Math.random().toString(36).substring(2, 10).toUpperCase()}`,
-            gatewayResponseCode: "0000",
-            valId: `VAL_${paymentCounter}`,
-          },
-          breakdown: {
-            baseAmount: paidAmount,
-            gatewayFee,
-            platformCommission,
-            vendorReceivable,
-          },
-          status: "completed",
-          paidAt: new Date(bookingCreatedAt.getTime() + 15 * 60 * 1000),
-          refundDetails: {
-            isRefunded: false,
-            refundAmount: 0,
-            refundReason: null,
-            refundedAt: null,
-          },
-          createdAt: bookingCreatedAt,
-          updatedAt: bookingCreatedAt,
+          paymentMethod: paymentMethods[paymentCounter % paymentMethods.length],
+          paidAt,
+          createdAt,
         });
+      }
+
+      // 2. Platform Fee Settlement (Decorator -> Admin)
+      // At least 3 platform_fee data per decorator (we settle 5 per decorator)
+      if (status === "completed" && decoratorPlatformFeeCount < 5) {
+        decoratorPlatformFeeCount++;
+        const platformPaymentId = createObjectId("66be18a6f2c4a91b88", paymentCounter++);
+        const platformPaidAt = new Date(eventDate.getTime() + 24 * 60 * 60 * 1000);
+        const platformCreatedAt = new Date(eventDate.getTime() + 23 * 60 * 60 * 1000);
+
+        bookingDoc.settlementStatus.platformFee = {
+          isPaid: true,
+          amount: platformFeeAmount,
+          paymentId: platformPaymentId,
+          paidAt: platformPaidAt,
+        };
+
+        payments.push({
+          _id: platformPaymentId,
+          paymentCode: `PAY-${dateStr}-${String(paymentCounter).padStart(4, "0")}`,
+          bookingId: bookingDoc._id,
+          paymentType: "platform_fee",
+          sender: {
+            role: "decorator",
+            decoratorId: decorator._id,
+          },
+          receiver: {
+            role: "admin",
+            userId: adminId,
+          },
+          amount: platformFeeAmount,
+          currency: "BDT",
+          paymentMethod: paymentMethods[paymentCounter % paymentMethods.length],
+          paidAt: platformPaidAt,
+          createdAt: platformCreatedAt,
+        });
+      }
+
+      // 3. Agent Fee Settlement (Decorator -> Agent)
+      // Each agent is associated with at least 2 payment data with type agent_fee
+      if (status === "completed" && actualAssignedAgentId) {
+        const agentIdStr = actualAssignedAgentId.toString();
+        const currentCount = decoratorAgentFeeCounts[agentIdStr] || 0;
+        if (currentCount < 2) {
+          decoratorAgentFeeCounts[agentIdStr] = currentCount + 1;
+          const agentPaymentId = createObjectId("66be18a6f2c4a91b88", paymentCounter++);
+          const agentPaidAt = new Date(eventDate.getTime() + 36 * 60 * 60 * 1000);
+          const agentCreatedAt = new Date(eventDate.getTime() + 35 * 60 * 60 * 1000);
+
+          bookingDoc.settlementStatus.agentFee = {
+            isPaid: true,
+            amount: agentFeeAmount,
+            paymentId: agentPaymentId,
+            paidAt: agentPaidAt,
+          };
+
+          payments.push({
+            _id: agentPaymentId,
+            paymentCode: `PAY-${dateStr}-${String(paymentCounter).padStart(4, "0")}`,
+            bookingId: bookingDoc._id,
+            paymentType: "agent_fee",
+            sender: {
+              role: "decorator",
+              decoratorId: decorator._id,
+            },
+            receiver: {
+              role: "agent",
+              agentId: actualAssignedAgentId,
+            },
+            amount: agentFeeAmount,
+            currency: "BDT",
+            paymentMethod: paymentMethods[paymentCounter % paymentMethods.length],
+            paidAt: agentPaidAt,
+            createdAt: agentCreatedAt,
+          });
+        }
       }
 
       if (status === "completed" && actualAssignedAgentId) {
@@ -720,6 +807,8 @@ function generateAllSeedData(config) {
   const categories = generateCategories();
   const decoratorGeos = assignDecoratorGeos(counts, categories);
   const { users, decoratorUserMap, agentUserMap, customerUserList } = generateUsers(counts, auth, dates, decoratorGeos, startDate, currentDate);
+  const adminUser = users.find((u) => u.role === "admin");
+  const adminId = adminUser ? adminUser._id : createObjectId("66be18a1f2c4a91b88", 1);
   const decorators = generateDecorators(decoratorUserMap);
   const agents = generateAgents(agentUserMap, decorators, counts.activeAgentPercentage);
   const services = generateServices(decorators, financials.defaultDepositPercent);
@@ -730,7 +819,8 @@ function generateAllSeedData(config) {
     customerUserList,
     counts,
     financials,
-    currentDate
+    currentDate,
+    adminId
   );
 
   return {
