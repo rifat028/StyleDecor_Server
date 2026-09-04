@@ -31,10 +31,14 @@ router.get("/agent/me", verifyFbToken, reviewController.getMyAgentReviews);
 router.get("/", verifyFbToken, verifyAdmin, reviewController.getAllReviewsAdmin);
 router.get("/admin/all", verifyFbToken, verifyAdmin, reviewController.getAllReviewsAdmin);
 router.patch("/admin/:id/status", verifyFbToken, verifyAdmin, reviewController.moderateReviewStatus);
+router.patch("/admin/:id/featured", verifyFbToken, verifyAdmin, reviewController.toggleFeaturedReview);
+router.patch("/admin/:id/feature", verifyFbToken, verifyAdmin, reviewController.toggleFeaturedReview);
 router.delete("/admin/:id", verifyFbToken, verifyAdmin, reviewController.deleteReviewPermanently);
 
 // ========== 6. General / Contextual ID Routes ==========
 router.patch("/:id/status", verifyFbToken, verifyAdmin, reviewController.moderateReviewStatus);
+router.patch("/:id/featured", verifyFbToken, verifyAdmin, reviewController.toggleFeaturedReview);
+router.patch("/:id/feature", verifyFbToken, verifyAdmin, reviewController.toggleFeaturedReview);
 router.patch("/:id", verifyFbToken, reviewController.updateCustomerReview);
 router.delete("/:id", verifyFbToken, reviewController.deleteReviewPermanently);
 

@@ -767,12 +767,8 @@ function generateBookingsPaymentsAndReviews(decorators, services, agents, custom
         const comment = REVIEW_COMMENTS[reviewCounter % REVIEW_COMMENTS.length];
         const reviewDate = new Date(eventDate.getTime() + 12 * 60 * 60 * 1000);
 
-        let reviewStatus = "published";
-        if (reviewCounter % 29 === 0) {
-          reviewStatus = "hidden";
-        } else if (reviewCounter % 37 === 0) {
-          reviewStatus = "flagged";
-        }
+        const reviewStatus = reviewCounter % 15 === 0 ? "hidden" : "published";
+        const isFeatured = reviewCounter % 6 === 0;
 
         reviews.push({
           _id: reviewId,
@@ -782,7 +778,9 @@ function generateBookingsPaymentsAndReviews(decorators, services, agents, custom
           customerEmail: customer.email,
           customerPhotoUrl: customer.photoUrl,
           decoratorId: decorator._id,
+          decoratorName: decorator.businessName || decorator.name || "StyleDecor Agency",
           serviceId: service._id,
+          serviceTitle: service.title || "Event Decoration",
           agentId: assignedAgent._id,
           agentName: assignedAgent.name,
           rating: 4 + (reviewCounter % 2),
@@ -791,7 +789,7 @@ function generateBookingsPaymentsAndReviews(decorators, services, agents, custom
           vendorReply: reviewCounter % 3 === 0 ? "Thank you for trusting StyleDecor! It was an absolute pleasure creating this stage for you." : null,
           isVerifiedBooking: true,
           status: reviewStatus,
-          featured: reviewCounter % 5 === 0,
+          featured: isFeatured,
           createdAt: reviewDate,
           updatedAt: reviewDate,
         });

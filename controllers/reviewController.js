@@ -6,6 +6,7 @@ const {
   agentCollection,
   decoratorCollection,
   userCollection,
+  serviceCollection,
 } = require("../models/collections");
 
 // ========== Helper: Recalculate Ratings for Decorator & Agent ==========
@@ -210,6 +211,20 @@ const createReview = async (req, res) => {
       if (agentDoc) agentName = agentDoc.name;
     }
 
+    let decoratorName = "StyleDecor Agency";
+    if (finalDecoratorId) {
+      const decDoc = await decoratorCollection.findOne({ _id: finalDecoratorId });
+      if (decDoc) decoratorName = decDoc.businessName || decDoc.name || decoratorName;
+    }
+
+    let serviceTitle = "Event Decoration";
+    if (finalServiceId) {
+      const srvDoc = await serviceCollection.findOne({ _id: finalServiceId });
+      if (srvDoc) serviceTitle = srvDoc.title || serviceTitle;
+    } else if (linkedBooking?.serviceSnapshot?.title) {
+      serviceTitle = linkedBooking.serviceSnapshot.title;
+    }
+
     const newReview = {
       bookingId: linkedBooking ? linkedBooking._id : null,
       customerId: user ? user._id : null,
@@ -217,7 +232,9 @@ const createReview = async (req, res) => {
       customerEmail: email,
       customerPhotoUrl: user?.photoUrl || "https://images.unsplash.com/photo-1534528741775-53994a69daeb?w=400&auto=format&fit=crop&q=80",
       decoratorId: finalDecoratorId,
+      decoratorName: decoratorName,
       serviceId: finalServiceId,
+      serviceTitle: serviceTitle,
       agentId: finalAgentId,
       agentName: agentName,
       rating: Math.min(5, Math.max(1, Number(rating) || 5)),
@@ -226,6 +243,7 @@ const createReview = async (req, res) => {
       vendorReply: null,
       isVerifiedBooking: Boolean(linkedBooking),
       status: "published",
+      featured: false,
       createdAt: new Date(),
       updatedAt: new Date(),
     };
@@ -704,12 +722,13 @@ const getAllReviewsAdmin = async (req, res) => {
     const decoratorStats = {};
     let publishedCount = 0;
     let hiddenCount = 0;
-    let flaggedCount = 0;
+    let featuredCount = 0;
 
     allReviews.forEach((r) => {
-      if (r.status === "published") publishedCount++;
-      else if (r.status === "hidden") hiddenCount++;
-      else if (r.status === "flagged") flaggedCount++;
+      if (r.status === "hidden") hiddenCount++;
+      else publishedCount++;
+
+      if (r.featured) featuredCount++;
 
       const decId = r.decoratorId?.toString();
       if (!decId) return;
@@ -718,12 +737,13 @@ const getAllReviewsAdmin = async (req, res) => {
           total: 0,
           published: 0,
           hidden: 0,
-          flagged: 0,
         };
       }
       decoratorStats[decId].total += 1;
-      if (r.status && decoratorStats[decId][r.status] !== undefined) {
-        decoratorStats[decId][r.status] += 1;
+      if (r.status === "hidden") {
+        decoratorStats[decId].hidden += 1;
+      } else {
+        decoratorStats[decId].published += 1;
       }
     });
 
@@ -739,12 +759,12 @@ const getAllReviewsAdmin = async (req, res) => {
         totalReviews: totalAll,
         publishedCount,
         hiddenCount,
-        flaggedCount,
+        featuredCount,
         all: totalAll,
         total: totalAll,
         published: publishedCount,
         hidden: hiddenCount,
-        flagged: flaggedCount,
+        featured: featuredCount,
         decoratorStats,
       },
       data: reviews,
@@ -758,7 +778,7 @@ const getAllReviewsAdmin = async (req, res) => {
   }
 };
 
-// 5.2 Moderate Review Status (published | hidden | flagged | archived)
+// 5.2 Moderate Review Status (published | hidden)
 const moderateReviewStatus = async (req, res) => {
   try {
     const { id } = req.params;
@@ -768,7 +788,7 @@ const moderateReviewStatus = async (req, res) => {
       return res.status(400).send({ success: false, message: "Invalid review ID" });
     }
 
-    const validStatuses = ["published", "hidden", "flagged", "archived"];
+    const validStatuses = ["published", "hidden"];
     if (!validStatuses.includes(status)) {
       return res.status(400).send({
         success: false,
@@ -798,6 +818,42 @@ const moderateReviewStatus = async (req, res) => {
     res.status(500).send({
       success: false,
       message: "Error moderating review status",
+      error: error.message,
+    });
+  }
+};
+
+// 5.3 Toggle Featured Review (Admin Feature Showcase)
+const toggleFeaturedReview = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const { featured } = req.body || {};
+
+    if (!ObjectId.isValid(id)) {
+      return res.status(400).send({ success: false, message: "Invalid review ID" });
+    }
+
+    const review = await reviewCollection.findOne({ _id: new ObjectId(id) });
+    if (!review) {
+      return res.status(404).send({ success: false, message: "Review not found" });
+    }
+
+    const newFeatured = typeof featured === "boolean" ? featured : !Boolean(review.featured);
+
+    await reviewCollection.updateOne(
+      { _id: new ObjectId(id) },
+      { $set: { featured: newFeatured, updatedAt: new Date() } }
+    );
+
+    res.send({
+      success: true,
+      message: `Review ${newFeatured ? "marked as featured" : "unmarked from featured"} successfully`,
+      featured: newFeatured,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error updating featured status",
       error: error.message,
     });
   }
@@ -854,5 +910,6 @@ module.exports = {
   // Admin
   getAllReviewsAdmin,
   moderateReviewStatus,
+  toggleFeaturedReview,
   deleteReviewPermanently,
 };
