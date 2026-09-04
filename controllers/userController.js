@@ -1,6 +1,7 @@
 // ========== Imports ==========
 const { ObjectId } = require("mongodb");
 const { userCollection } = require("../models/collections");
+const { resolveDateRange, buildDateQuery } = require("../utils/dateFilter");
 
 // ========== Create or Sync User ==========
 // Inserts a new user or syncs existing user upon Firebase login/registration
@@ -77,12 +78,31 @@ const getMyProfile = async (req, res) => {
 };
 
 // ========== Get All Users (Admin) ==========
-// Retrieves users with search, role filters, division & district filters, and pagination
 const getAllUsers = async (req, res) => {
   try {
-    const { search, role, division, district, page = 1, limit = 10, sort = "desc" } = req.query;
+    const {
+      search,
+      role,
+      division,
+      district,
+      page = 1,
+      limit = 10,
+      sort = "desc",
+      timeFilter = "max",
+      startDate,
+      endDate,
+    } = req.query;
 
     const andConditions = [];
+
+    // Time / Date Filter
+    if (timeFilter && timeFilter !== "max") {
+      const range = resolveDateRange(timeFilter, startDate, endDate);
+      const dateQuery = buildDateQuery(["createdAt", "updatedAt"], range);
+      if (dateQuery) {
+        andConditions.push(dateQuery);
+      }
+    }
 
     if (search) {
       andConditions.push({
@@ -287,26 +307,35 @@ const deleteUser = async (req, res) => {
 // Returns total counts categorized by role, division, district, and cross-combinations
 const getUserStats = async (req, res) => {
   try {
-    const totalUsers = await userCollection.countDocuments();
-    const adminCount = await userCollection.countDocuments({ role: "admin" });
-    const decoratorCount = await userCollection.countDocuments({ role: "decorator" });
-    const agentCount = await userCollection.countDocuments({ role: "agent" });
-    const customerCount = await userCollection.countDocuments({ role: "customer" });
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+    const dateQuery = buildDateQuery(["createdAt", "updatedAt"], range);
+    const baseQuery = dateQuery || {};
+
+    const totalUsers = await userCollection.countDocuments(baseQuery);
+    const adminCount = await userCollection.countDocuments({ ...baseQuery, role: "admin" });
+    const decoratorCount = await userCollection.countDocuments({ ...baseQuery, role: "decorator" });
+    const agentCount = await userCollection.countDocuments({ ...baseQuery, role: "agent" });
+    const customerCount = await userCollection.countDocuments({ ...baseQuery, role: "customer" });
 
     // Aggregate counts by role, division, and district
-    const detailedAggregation = await userCollection
-      .aggregate([
-        {
-          $group: {
-            _id: {
-              role: "$role",
-              division: "$address.division",
-              district: "$address.district",
-            },
-            count: { $sum: 1 },
-          },
+    const pipeline = [];
+    if (dateQuery) {
+      pipeline.push({ $match: dateQuery });
+    }
+    pipeline.push({
+      $group: {
+        _id: {
+          role: "$role",
+          division: "$address.division",
+          district: "$address.district",
         },
-      ])
+        count: { $sum: 1 },
+      },
+    });
+
+    const detailedAggregation = await userCollection
+      .aggregate(pipeline)
       .toArray();
 
     const divisions = {};

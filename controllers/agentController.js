@@ -7,6 +7,7 @@ const {
   bookingCollection,
   agentReviewCollection,
 } = require("../models/collections");
+const { resolveDateRange, buildDateQuery } = require("../utils/dateFilter");
 
 // ========== Helper: Batch Entity Enrichment ==========
 const enrichAgents = async (agents) => {
@@ -483,9 +484,21 @@ const getAgents = async (req, res) => {
       sort = "rating",
       page = 1,
       limit = 12,
+      timeFilter = "max",
+      startDate,
+      endDate,
     } = req.query;
 
     const andConditions = [];
+
+    // Time / Date Filter
+    if (timeFilter && timeFilter !== "max") {
+      const range = resolveDateRange(timeFilter, startDate, endDate);
+      const dateQuery = buildDateQuery(["createdAt", "joinedAt", "updatedAt"], range);
+      if (dateQuery) {
+        andConditions.push(dateQuery);
+      }
+    }
 
     if (status && status !== "all") {
       if (status === "available") {
@@ -585,7 +598,12 @@ const getAgents = async (req, res) => {
 // ========== 9. Get Agent Statistics (Admin & Overview) ==========
 const getAgentStats = async (req, res) => {
   try {
-    const allAgents = await agentCollection.find({}).toArray();
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+    const dateQuery = buildDateQuery(["createdAt", "joinedAt", "updatedAt"], range);
+    const filterQuery = dateQuery || {};
+
+    const allAgents = await agentCollection.find(filterQuery).toArray();
 
     const totalAgents = allAgents.length;
     const availableCount = allAgents.filter((a) => a.status === "available" || a.status === "active").length;

@@ -5,6 +5,7 @@ const {
   decoratorCollection,
   userCollection,
 } = require("../models/collections");
+const { resolveDateRange, buildDateQuery } = require("../utils/dateFilter");
 
 // Helper to generate SEO friendly slugs
 const generateSlug = (text) => {
@@ -39,9 +40,22 @@ const getServices = async (req, res) => {
       sort = "newest",
       page = 1,
       limit = 12,
+      timeFilter = "max",
+      startDate,
+      endDate,
     } = req.query;
 
     const query = {};
+
+    // Time / Date Filter
+    if (timeFilter && timeFilter !== "max") {
+      const range = resolveDateRange(timeFilter, startDate, endDate);
+      const dateQuery = buildDateQuery(["createdAt", "updatedAt"], range);
+      if (dateQuery) {
+        query.$and = query.$and || [];
+        query.$and.push(dateQuery);
+      }
+    }
 
     // 1. Status Filter
     if (status && status !== "all") {
@@ -618,25 +632,35 @@ const deleteService = async (req, res) => {
 // ========== Get Service Stats (Admin) ==========
 const getServiceStats = async (req, res) => {
   try {
-    const total = await serviceCollection.countDocuments({});
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+    const dateQuery = buildDateQuery(["createdAt", "updatedAt"], range);
+    const baseQuery = dateQuery || {};
+
+    const total = await serviceCollection.countDocuments(baseQuery);
     const active = await serviceCollection.countDocuments({
+      ...baseQuery,
       $or: [{ status: "active" }, { status: { $exists: false } }],
     });
-    const inactive = await serviceCollection.countDocuments({ status: "inactive" });
-    const featured = await serviceCollection.countDocuments({ featured: true });
+    const inactive = await serviceCollection.countDocuments({ ...baseQuery, status: "inactive" });
+    const featured = await serviceCollection.countDocuments({ ...baseQuery, featured: true });
 
-    const categoryStats = await serviceCollection
-      .aggregate([
-        {
-          $group: {
-            _id: "$category",
-            count: { $sum: 1 },
-            avgPrice: { $avg: "$pricing.basePrice" },
-          },
+    const pipeline = [];
+    if (dateQuery) {
+      pipeline.push({ $match: dateQuery });
+    }
+    pipeline.push(
+      {
+        $group: {
+          _id: "$category",
+          count: { $sum: 1 },
+          avgPrice: { $avg: "$pricing.basePrice" },
         },
-        { $sort: { count: -1 } },
-      ])
-      .toArray();
+      },
+      { $sort: { count: -1 } }
+    );
+
+    const categoryStats = await serviceCollection.aggregate(pipeline).toArray();
 
     res.send({
       success: true,

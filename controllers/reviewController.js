@@ -8,6 +8,7 @@ const {
   userCollection,
   serviceCollection,
 } = require("../models/collections");
+const { resolveDateRange, buildDateQuery } = require("../utils/dateFilter");
 
 // ========== Helper: Recalculate Ratings for Decorator & Agent ==========
 const recalculateMetrics = async (decoratorId, agentId) => {
@@ -670,9 +671,18 @@ const getAllReviewsAdmin = async (req, res) => {
       sort = "newest",
       page = 1,
       limit = 20,
+      timeFilter = "max",
+      startDate = "",
+      endDate = "",
     } = req.query;
 
     const query = {};
+
+    const dateRange = resolveDateRange(timeFilter, startDate, endDate);
+    const dateQuery = buildDateQuery(["createdAt", "updatedAt"], dateRange);
+    if (dateQuery) {
+      Object.assign(query, dateQuery);
+    }
 
     if (status === "featured") {
       query.featured = true;
@@ -727,17 +737,20 @@ const getAllReviewsAdmin = async (req, res) => {
       .toArray();
 
     // Summary counts for tabs and decorators
-    const allReviews = await reviewCollection.find({}).toArray();
+    const statsQuery = dateQuery || {};
+    const allReviews = await reviewCollection.find(statsQuery).toArray();
     const decoratorStats = {};
     let publishedCount = 0;
     let hiddenCount = 0;
     let featuredCount = 0;
+    let totalRatingSum = 0;
 
     allReviews.forEach((r) => {
       if (r.status === "hidden") hiddenCount++;
       else publishedCount++;
 
       if (r.featured) featuredCount++;
+      if (r.rating) totalRatingSum += Number(r.rating) || 0;
 
       const decId = r.decoratorId?.toString();
       if (!decId) return;
@@ -757,6 +770,7 @@ const getAllReviewsAdmin = async (req, res) => {
     });
 
     const totalAll = allReviews.length;
+    const averageRating = totalAll > 0 ? Number((totalRatingSum / totalAll).toFixed(1)) : 5.0;
 
     res.send({
       success: true,
@@ -775,6 +789,7 @@ const getAllReviewsAdmin = async (req, res) => {
         hidden: hiddenCount,
         featured: featuredCount,
         decoratorStats,
+        averageRating,
       },
       data: reviews,
     });
