@@ -180,22 +180,18 @@ const getKpiCards = async (req, res) => {
   }
 };
 
-// 2. Status-Wise Decorator Distribution
+// 2. Status-Wise Decorator Distribution (all-time catalog, independent of time filter)
 const getDecoratorStatusDistribution = async (req, res) => {
   try {
-    const { timeFilter = "max", startDate, endDate } = req.query;
-    const range = resolveDateRange(timeFilter, startDate, endDate);
-
     const decorators = await decoratorCollection.find({}).toArray();
-    const filtered = decorators.filter((d) => isInDateRange(d, range));
 
     const statusCounts = {};
-    filtered.forEach((d) => {
+    decorators.forEach((d) => {
       const rawStatus = (d.status || "active").toLowerCase();
       statusCounts[rawStatus] = (statusCounts[rawStatus] || 0) + 1;
     });
 
-    const total = filtered.length;
+    const total = decorators.length;
     const data = Object.entries(statusCounts).map(([statusKey, count]) => ({
       status: statusKey,
       name: formatStatusLabel(statusKey),
@@ -206,7 +202,6 @@ const getDecoratorStatusDistribution = async (req, res) => {
 
     res.send({
       success: true,
-      timeFilter,
       total,
       data,
     });
@@ -219,22 +214,18 @@ const getDecoratorStatusDistribution = async (req, res) => {
   }
 };
 
-// 3. Status-Wise Service Distribution
+// 3. Status-Wise Service Distribution (all-time catalog, independent of time filter)
 const getServiceStatusDistribution = async (req, res) => {
   try {
-    const { timeFilter = "max", startDate, endDate } = req.query;
-    const range = resolveDateRange(timeFilter, startDate, endDate);
-
     const services = await serviceCollection.find({}).toArray();
-    const filtered = services.filter((s) => isInDateRange(s, range));
 
     const statusCounts = {};
-    filtered.forEach((s) => {
+    services.forEach((s) => {
       const rawStatus = (s.status || "active").toLowerCase();
       statusCounts[rawStatus] = (statusCounts[rawStatus] || 0) + 1;
     });
 
-    const total = filtered.length;
+    const total = services.length;
     const data = Object.entries(statusCounts).map(([statusKey, count]) => ({
       status: statusKey,
       name: formatStatusLabel(statusKey),
@@ -245,7 +236,6 @@ const getServiceStatusDistribution = async (req, res) => {
 
     res.send({
       success: true,
-      timeFilter,
       total,
       data,
     });
