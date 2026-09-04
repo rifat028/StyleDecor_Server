@@ -52,16 +52,19 @@ const getKpiStats = async (req, res) => {
     // Pending commission
     const pendingCommission = Math.max(0, platformCommission - collectedCommission);
 
+    const payload = {
+      totalVolume,
+      platformCommission,
+      collectedCommission,
+      pendingCommission,
+      completedBookingsCount: bookings.length,
+      totalCustomerTransactions: customerPayments.length,
+    };
+
     res.send({
       success: true,
-      data: {
-        totalVolume,
-        platformCommission,
-        collectedCommission,
-        pendingCommission,
-        completedBookingsCount: bookings.length,
-        totalCustomerTransactions: customerPayments.length,
-      },
+      ...payload,
+      data: payload,
     });
   } catch (error) {
     res.status(500).send({
