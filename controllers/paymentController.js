@@ -7,6 +7,7 @@ const {
   decoratorCollection,
   agentCollection,
 } = require("../models/collections");
+const { resolveDateRange, buildDateQuery } = require("../utils/dateFilter");
 
 // Initialize Stripe conditionally
 let stripe = null;
@@ -182,6 +183,9 @@ const getPayments = async (req, res) => {
       sort = "newest",
       page = 1,
       limit = 10,
+      timeFilter = "max",
+      startDate,
+      endDate,
     } = req.query;
 
     const andConditions = [];
@@ -207,6 +211,15 @@ const getPayments = async (req, res) => {
           { decoratorId: decObjectId },
         ],
       });
+    }
+
+    // Time / Date Filter
+    if (timeFilter && timeFilter !== "max") {
+      const range = resolveDateRange(timeFilter, startDate, endDate);
+      const dateQuery = buildDateQuery(["paidAt", "createdAt"], range);
+      if (dateQuery) {
+        andConditions.push(dateQuery);
+      }
     }
 
     // Search Keyword
@@ -265,7 +278,12 @@ const getPayments = async (req, res) => {
 // ========== 2. Get Payment Financial Statistics (Admin & Analytics) ==========
 const getPaymentStats = async (req, res) => {
   try {
-    const allPayments = await paymentsCollection.find({}).toArray();
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+    const dateQuery = buildDateQuery(["paidAt", "createdAt"], range);
+    const filterQuery = dateQuery || {};
+
+    const allPayments = await paymentsCollection.find(filterQuery).toArray();
 
     const advancePayments = allPayments.filter((p) => p.paymentType === "advance_payment");
     const fullPayments = allPayments.filter((p) => p.paymentType === "full_payment");

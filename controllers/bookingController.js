@@ -7,6 +7,7 @@ const {
   serviceCollection,
   agentCollection,
 } = require("../models/collections");
+const { resolveDateRange, buildDateQuery } = require("../utils/dateFilter");
 
 // Helper to generate unique Booking Codes (e.g., BK-202608-84920)
 const generateBookingCode = () => {
@@ -75,6 +76,9 @@ const getBookings = async (req, res) => {
       sortDate,
       page = 1,
       limit = 10,
+      timeFilter = "max",
+      startDate,
+      endDate,
     } = req.query;
 
     const andConditions = [];
@@ -117,7 +121,16 @@ const getBookings = async (req, res) => {
       andConditions.push({ assignedAgentId: new ObjectId(assignedAgentId) });
     }
 
-    // 6. Search Filter
+    // 6. Time / Date Filter
+    if (timeFilter && timeFilter !== "max") {
+      const range = resolveDateRange(timeFilter, startDate, endDate);
+      const dateQuery = buildDateQuery(["createdAt", "eventDetails.eventDate"], range);
+      if (dateQuery) {
+        andConditions.push(dateQuery);
+      }
+    }
+
+    // 7. Search Filter
     if (search && search.trim() !== "") {
       const regex = { $regex: search.trim(), $options: "i" };
       andConditions.push({
@@ -613,7 +626,12 @@ const deleteBooking = async (req, res) => {
 // ========== Get Booking Statistics (Admin / Overview) ==========
 const getBookingStats = async (req, res) => {
   try {
-    const allBookings = await bookingCollection.find({}).toArray();
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+    const dateQuery = buildDateQuery(["createdAt", "eventDetails.eventDate"], range);
+    const filterQuery = dateQuery ? dateQuery : {};
+
+    const allBookings = await bookingCollection.find(filterQuery).toArray();
 
     const total = allBookings.length;
     const preparing = allBookings.filter((b) => b.status === "preparing").length;

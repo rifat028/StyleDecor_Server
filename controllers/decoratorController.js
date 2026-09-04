@@ -1,6 +1,7 @@
 // ========== Imports ==========
 const { ObjectId } = require("mongodb");
 const { decoratorCollection, userCollection } = require("../models/collections");
+const { resolveDateRange, buildDateQuery } = require("../utils/dateFilter");
 
 // Helper to generate URL-friendly slugs
 const generateSlug = (text) => {
@@ -30,6 +31,9 @@ const getDecorators = async (req, res) => {
       sort = "rating",
       page = 1,
       limit = 12,
+      timeFilter = "max",
+      startDate,
+      endDate,
     } = req.query;
 
     const query = {};
@@ -94,6 +98,16 @@ const getDecorators = async (req, res) => {
     // Verified filter
     if (verified === "true") {
       query["verification.isVerified"] = true;
+    }
+
+    // Time / Date Filter
+    if (timeFilter && timeFilter !== "max") {
+      const range = resolveDateRange(timeFilter, startDate, endDate);
+      const dateQuery = buildDateQuery(["createdAt", "verification.verifiedAt"], range);
+      if (dateQuery) {
+        query.$and = query.$and || [];
+        query.$and.push(dateQuery);
+      }
     }
 
     // Search query (businessName, tagline, about, district, division, serviceAreas)
@@ -638,10 +652,16 @@ const deleteDecorator = async (req, res) => {
 // Aggregates counts by status, verification, featured, and division
 const getDecoratorStats = async (req, res) => {
   try {
-    const total = await decoratorCollection.countDocuments({});
-    const pending = await decoratorCollection.countDocuments({ status: "pending" });
-    const suspended = await decoratorCollection.countDocuments({ status: "suspended" });
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+    const dateQuery = buildDateQuery(["createdAt", "verification.verifiedAt"], range);
+    const baseQuery = dateQuery || {};
+
+    const total = await decoratorCollection.countDocuments(baseQuery);
+    const pending = await decoratorCollection.countDocuments({ ...baseQuery, status: "pending" });
+    const suspended = await decoratorCollection.countDocuments({ ...baseQuery, status: "suspended" });
     const active = await decoratorCollection.countDocuments({
+      ...baseQuery,
       $or: [
         { status: "active" },
         { status: { $exists: false } },
@@ -650,15 +670,19 @@ const getDecoratorStats = async (req, res) => {
       ],
     });
     const verified = await decoratorCollection.countDocuments({
+      ...baseQuery,
       $or: [{ "verification.isVerified": true }, { verification: { $exists: false } }],
     });
-    const featured = await decoratorCollection.countDocuments({ featured: true });
+    const featured = await decoratorCollection.countDocuments({ ...baseQuery, featured: true });
 
     // Detailed aggregation with normalized status and division
-    const detailedAggregation = await decoratorCollection
-      .aggregate([
-        {
-          $project: {
+    const pipeline = [];
+    if (dateQuery) {
+      pipeline.push({ $match: dateQuery });
+    }
+    pipeline.push(
+      {
+        $project: {
             status: {
               $cond: [
                 {
@@ -688,20 +712,23 @@ const getDecoratorStats = async (req, res) => {
             division: {
               $ifNull: ["$contactInfo.division", { $ifNull: ["$division", "Dhaka"] }],
             },
-          },
         },
-        {
-          $group: {
-            _id: {
-              status: "$status",
-              isVerified: "$isVerified",
-              featured: "$featured",
-              division: "$division",
-            },
-            count: { $sum: 1 },
+      },
+      {
+        $group: {
+          _id: {
+            status: "$status",
+            isVerified: "$isVerified",
+            featured: "$featured",
+            division: "$division",
           },
+          count: { $sum: 1 },
         },
-      ])
+      }
+    );
+
+    const detailedAggregation = await decoratorCollection
+      .aggregate(pipeline)
       .toArray();
 
     const byStatus = {

@@ -135,8 +135,41 @@ const formatStatusLabel = (status = "") => {
     .join(" ");
 };
 
+/**
+ * Constructs a MongoDB query condition for filtering documents by date fields
+ * Handles both BSON Date objects and ISO string timestamps.
+ *
+ * @param {string|string[]} dateFields - Field or array of fields to check
+ * @param {{ start: Date|null, end: Date|null, isMax: boolean }} range
+ * @returns {Object|null} MongoDB condition or null if max/unbounded
+ */
+const buildDateQuery = (dateFields = ["createdAt"], range) => {
+  if (!range || range.isMax || (!range.start && !range.end)) return null;
+
+  const fields = Array.isArray(dateFields) ? dateFields : [dateFields];
+  const orConditions = [];
+
+  for (const field of fields) {
+    const dateCond = {};
+    const strCond = {};
+    if (range.start) {
+      dateCond.$gte = range.start;
+      strCond.$gte = range.start.toISOString();
+    }
+    if (range.end) {
+      dateCond.$lte = range.end;
+      strCond.$lte = range.end.toISOString();
+    }
+    orConditions.push({ [field]: dateCond });
+    orConditions.push({ [field]: strCond });
+  }
+
+  return orConditions.length === 1 ? orConditions[0] : { $or: orConditions };
+};
+
 module.exports = {
   resolveDateRange,
   isInDateRange,
   formatStatusLabel,
+  buildDateQuery,
 };
