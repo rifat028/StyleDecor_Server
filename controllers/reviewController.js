@@ -666,6 +666,7 @@ const getAllReviewsAdmin = async (req, res) => {
       decoratorId,
       agentId,
       rating,
+      featured,
       sort = "newest",
       page = 1,
       limit = 20,
@@ -673,8 +674,16 @@ const getAllReviewsAdmin = async (req, res) => {
 
     const query = {};
 
-    if (status && status !== "all") {
+    if (status === "featured") {
+      query.featured = true;
+    } else if (status && status !== "all") {
       query.status = status;
+    }
+
+    if (featured === "true" || featured === true) {
+      query.featured = true;
+    } else if (featured === "false" || featured === false) {
+      query.featured = false;
     }
     if (decoratorId && ObjectId.isValid(decoratorId)) {
       query.decoratorId = new ObjectId(decoratorId);
