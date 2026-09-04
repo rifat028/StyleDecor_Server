@@ -88,37 +88,45 @@ const getKpiStats = async (req, res) => {
 };
 
 // =========================================================================
-// 2. Financial & Revenue Deep Dive - Gross Merchandise Value (GMV)
+// 2. Financial & Revenue Deep Dive - Gross Merchandise Value (GMV) - Last 12 Months
 // =========================================================================
 const getGmvTrend = async (req, res) => {
   try {
-    const { timeFilter = "max", startDate, endDate } = req.query;
-    const range = resolveDateRange(timeFilter, startDate, endDate);
-
     const bookings = await bookingCollection.find({}).toArray();
-    const filteredBookings = bookings.filter((b) => isInDateRange(b, range));
+
+    const now = new Date();
+    // 12 months window starting from the 1st of 11 months ago
+    const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1, 0, 0, 0, 0);
 
     const monthlyMap = {};
-    filteredBookings.forEach((b) => {
-      const date = b.createdAt ? new Date(b.createdAt) : new Date();
-      const sortKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const monthLabel = date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const sortKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const monthLabel = d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+      monthlyMap[sortKey] = {
+        sortKey,
+        month: monthLabel,
+        gmv: 0,
+        completedGmv: 0,
+        bookingsCount: 0,
+      };
+    }
 
-      if (!monthlyMap[sortKey]) {
-        monthlyMap[sortKey] = {
-          sortKey,
-          month: monthLabel,
-          gmv: 0,
-          completedGmv: 0,
-          bookingsCount: 0,
-        };
-      }
+    bookings.forEach((b) => {
+      const date = b.createdAt
+        ? new Date(b.createdAt)
+        : (typeof b._id.getTimestamp === "function" ? b._id.getTimestamp() : new Date());
 
-      const amount = b.pricingBreakdown?.grandTotal || b.serviceSnapshot?.unitPrice || 0;
-      monthlyMap[sortKey].gmv += amount;
-      monthlyMap[sortKey].bookingsCount += 1;
-      if (b.status === "completed") {
-        monthlyMap[sortKey].completedGmv += amount;
+      if (date >= twelveMonthsAgo && date <= now) {
+        const sortKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        if (monthlyMap[sortKey]) {
+          const amount = b.pricingBreakdown?.grandTotal || b.serviceSnapshot?.unitPrice || 0;
+          monthlyMap[sortKey].gmv += amount;
+          monthlyMap[sortKey].bookingsCount += 1;
+          if (b.status === "completed") {
+            monthlyMap[sortKey].completedGmv += amount;
+          }
+        }
       }
     });
 
@@ -128,7 +136,7 @@ const getGmvTrend = async (req, res) => {
 
     res.send({
       success: true,
-      timeFilter,
+      timeframe: "last_12_months",
       data: trend,
     });
   } catch (error) {
@@ -141,55 +149,57 @@ const getGmvTrend = async (req, res) => {
 };
 
 // =========================================================================
-// 3. Financial & Revenue Deep Dive - Net Commission
+// 3. Financial & Revenue Deep Dive - Net Platform Commission - Last 12 Months
 // =========================================================================
 const getNetCommissionTrend = async (req, res) => {
   try {
-    const { timeFilter = "max", startDate, endDate } = req.query;
-    const range = resolveDateRange(timeFilter, startDate, endDate);
-
     const [bookings, payments] = await Promise.all([
       bookingCollection.find({ status: "completed" }).toArray(),
       paymentCollection.find({ paymentType: "platform_fee" }).toArray(),
     ]);
 
-    const filteredBookings = bookings.filter((b) =>
-      isInDateRange(b, range, ["eventDetails.eventDate", "eventDate", "createdAt", "date"])
-    );
-    const filteredPayments = payments.filter((p) =>
-      isInDateRange(p, range, ["paidAt", "createdAt", "date"])
-    );
+    const now = new Date();
+    const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1, 0, 0, 0, 0);
 
     const monthlyMap = {};
+    for (let i = 11; i >= 0; i--) {
+      const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+      const sortKey = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, "0")}`;
+      const monthLabel = d.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+      monthlyMap[sortKey] = {
+        sortKey,
+        month: monthLabel,
+        netCommission: 0,
+        collectedCommission: 0,
+        pendingCommission: 0,
+        completedCount: 0,
+      };
+    }
 
-    filteredBookings.forEach((b) => {
-      const date = b.eventDetails?.eventDate ? new Date(b.eventDetails.eventDate) : new Date(b.createdAt);
-      const sortKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      const monthLabel = date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
+    bookings.forEach((b) => {
+      const date = b.eventDetails?.eventDate
+        ? new Date(b.eventDetails.eventDate)
+        : (b.createdAt ? new Date(b.createdAt) : (typeof b._id.getTimestamp === "function" ? b._id.getTimestamp() : new Date()));
 
-      if (!monthlyMap[sortKey]) {
-        monthlyMap[sortKey] = {
-          sortKey,
-          month: monthLabel,
-          netCommission: 0,
-          collectedCommission: 0,
-          pendingCommission: 0,
-          completedCount: 0,
-        };
+      if (date >= twelveMonthsAgo && date <= now) {
+        const sortKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        if (monthlyMap[sortKey]) {
+          const fee = b.pricingBreakdown?.grandTotal || b.serviceSnapshot?.unitPrice || 0;
+          const commission = Math.round(fee * 0.1);
+          monthlyMap[sortKey].netCommission += commission;
+          monthlyMap[sortKey].completedCount += 1;
+        }
       }
-
-      const fee = b.pricingBreakdown?.grandTotal || b.serviceSnapshot?.unitPrice || 0;
-      const commission = Math.round(fee * 0.1);
-      monthlyMap[sortKey].netCommission += commission;
-      monthlyMap[sortKey].completedCount += 1;
     });
 
     // Match collected platform fees by payment date
-    filteredPayments.forEach((p) => {
+    payments.forEach((p) => {
       const date = p.paidAt || p.createdAt ? new Date(p.paidAt || p.createdAt) : new Date();
-      const sortKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
-      if (monthlyMap[sortKey]) {
-        monthlyMap[sortKey].collectedCommission += p.amount || 0;
+      if (date >= twelveMonthsAgo && date <= now) {
+        const sortKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
+        if (monthlyMap[sortKey]) {
+          monthlyMap[sortKey].collectedCommission += p.amount || 0;
+        }
       }
     });
 
@@ -203,7 +213,7 @@ const getNetCommissionTrend = async (req, res) => {
 
     res.send({
       success: true,
-      timeFilter,
+      timeframe: "last_12_months",
       data: trend,
     });
   } catch (error) {
@@ -216,18 +226,14 @@ const getNetCommissionTrend = async (req, res) => {
 };
 
 // =========================================================================
-// 4. Market & Category Insights - Division-Wise User, Decorator, Agent
+// 4. Market & Category Insights - Division-Wise User, Decorator, Agent (Overall Data)
 // =========================================================================
 const getMarketDivisionUsers = async (req, res) => {
   try {
-    const { timeFilter = "max", startDate, endDate } = req.query;
-    const range = resolveDateRange(timeFilter, startDate, endDate);
-
     const users = await userCollection.find({}).toArray();
-    const filteredUsers = users.filter((u) => isInDateRange(u, range));
 
     const result = BANGLADESH_DIVISIONS.map((div) => {
-      const divisionUsers = filteredUsers.filter((u) => u.address?.division === div);
+      const divisionUsers = users.filter((u) => u.address?.division === div);
       const customers = divisionUsers.filter((u) => u.role === "customer" || u.role === "client").length;
       const decorators = divisionUsers.filter((u) => u.role === "decorator").length;
       const agents = divisionUsers.filter((u) => u.role === "agent").length;
@@ -243,7 +249,6 @@ const getMarketDivisionUsers = async (req, res) => {
 
     res.send({
       success: true,
-      timeFilter,
       data: result,
     });
   } catch (error) {
@@ -256,23 +261,18 @@ const getMarketDivisionUsers = async (req, res) => {
 };
 
 // =========================================================================
-// 5. Market & Category Insights - Category-Wise Service Count
+// 5. Market & Category Insights - Category-Wise Service Count (Overall Data)
 // =========================================================================
 const getCategoryServiceCount = async (req, res) => {
   try {
-    const { timeFilter = "max", startDate, endDate } = req.query;
-    const range = resolveDateRange(timeFilter, startDate, endDate);
-
     const [categories, services] = await Promise.all([
       categoryCollection.find({}).toArray(),
       serviceCollection.find({}).toArray(),
     ]);
 
-    const filteredServices = services.filter((s) => isInDateRange(s, range));
-
     const result = categories.map((cat) => {
       const catName = cat.name;
-      const catServices = filteredServices.filter(
+      const catServices = services.filter(
         (s) =>
           s.category === catName ||
           s.categoryName === catName ||
@@ -298,7 +298,6 @@ const getCategoryServiceCount = async (req, res) => {
 
     res.send({
       success: true,
-      timeFilter,
       data: result,
     });
   } catch (error) {
