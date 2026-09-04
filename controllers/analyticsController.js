@@ -10,6 +10,7 @@ const {
   categoryCollection,
   reviewCollection,
 } = require("../models/collections");
+const { resolveDateRange, isInDateRange } = require("../utils/dateFilter");
 
 const BANGLADESH_DIVISIONS = [
   "Dhaka",
@@ -27,37 +28,48 @@ const BANGLADESH_DIVISIONS = [
 // =========================================================================
 const getKpiStats = async (req, res) => {
   try {
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+
     const [payments, bookings] = await Promise.all([
       paymentCollection.find({}).toArray(),
       bookingCollection.find({ status: "completed" }).toArray(),
     ]);
 
+    const filteredPayments = payments.filter((p) =>
+      isInDateRange(p, range, ["paidAt", "createdAt", "date"])
+    );
+    const filteredBookings = bookings.filter((b) =>
+      isInDateRange(b, range, ["createdAt", "eventDate", "date"])
+    );
+
     // Total volume: customer payments (advance_payment and full_payment)
-    const customerPayments = payments.filter(
+    const customerPayments = filteredPayments.filter(
       (p) => p.paymentType === "advance_payment" || p.paymentType === "full_payment"
     );
     const totalVolume = customerPayments.reduce((acc, p) => acc + (p.amount || 0), 0);
 
     // Platform commission: 10% of completed booking service fees
-    const totalCompletedFee = bookings.reduce(
+    const totalCompletedFee = filteredBookings.reduce(
       (acc, b) => acc + (b.pricingBreakdown?.grandTotal || b.serviceSnapshot?.unitPrice || 0),
       0
     );
     const platformCommission = Math.round(totalCompletedFee * 0.1);
 
     // Collected commission: payments with paymentType === 'platform_fee'
-    const platformFeePayments = payments.filter((p) => p.paymentType === "platform_fee");
+    const platformFeePayments = filteredPayments.filter((p) => p.paymentType === "platform_fee");
     const collectedCommission = platformFeePayments.reduce((acc, p) => acc + (p.amount || 0), 0);
 
     // Pending commission
     const pendingCommission = Math.max(0, platformCommission - collectedCommission);
 
     const payload = {
+      timeFilter,
       totalVolume,
       platformCommission,
       collectedCommission,
       pendingCommission,
-      completedBookingsCount: bookings.length,
+      completedBookingsCount: filteredBookings.length,
       totalCustomerTransactions: customerPayments.length,
     };
 
@@ -80,10 +92,14 @@ const getKpiStats = async (req, res) => {
 // =========================================================================
 const getGmvTrend = async (req, res) => {
   try {
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+
     const bookings = await bookingCollection.find({}).toArray();
+    const filteredBookings = bookings.filter((b) => isInDateRange(b, range));
 
     const monthlyMap = {};
-    bookings.forEach((b) => {
+    filteredBookings.forEach((b) => {
       const date = b.createdAt ? new Date(b.createdAt) : new Date();
       const sortKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       const monthLabel = date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
@@ -112,6 +128,7 @@ const getGmvTrend = async (req, res) => {
 
     res.send({
       success: true,
+      timeFilter,
       data: trend,
     });
   } catch (error) {
@@ -128,12 +145,24 @@ const getGmvTrend = async (req, res) => {
 // =========================================================================
 const getNetCommissionTrend = async (req, res) => {
   try {
-    const bookings = await bookingCollection.find({ status: "completed" }).toArray();
-    const payments = await paymentCollection.find({ paymentType: "platform_fee" }).toArray();
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+
+    const [bookings, payments] = await Promise.all([
+      bookingCollection.find({ status: "completed" }).toArray(),
+      paymentCollection.find({ paymentType: "platform_fee" }).toArray(),
+    ]);
+
+    const filteredBookings = bookings.filter((b) =>
+      isInDateRange(b, range, ["eventDetails.eventDate", "eventDate", "createdAt", "date"])
+    );
+    const filteredPayments = payments.filter((p) =>
+      isInDateRange(p, range, ["paidAt", "createdAt", "date"])
+    );
 
     const monthlyMap = {};
 
-    bookings.forEach((b) => {
+    filteredBookings.forEach((b) => {
       const date = b.eventDetails?.eventDate ? new Date(b.eventDetails.eventDate) : new Date(b.createdAt);
       const sortKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       const monthLabel = date.toLocaleDateString("en-US", { month: "short", year: "numeric" });
@@ -156,7 +185,7 @@ const getNetCommissionTrend = async (req, res) => {
     });
 
     // Match collected platform fees by payment date
-    payments.forEach((p) => {
+    filteredPayments.forEach((p) => {
       const date = p.paidAt || p.createdAt ? new Date(p.paidAt || p.createdAt) : new Date();
       const sortKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}`;
       if (monthlyMap[sortKey]) {
@@ -174,6 +203,7 @@ const getNetCommissionTrend = async (req, res) => {
 
     res.send({
       success: true,
+      timeFilter,
       data: trend,
     });
   } catch (error) {
@@ -190,10 +220,14 @@ const getNetCommissionTrend = async (req, res) => {
 // =========================================================================
 const getMarketDivisionUsers = async (req, res) => {
   try {
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+
     const users = await userCollection.find({}).toArray();
+    const filteredUsers = users.filter((u) => isInDateRange(u, range));
 
     const result = BANGLADESH_DIVISIONS.map((div) => {
-      const divisionUsers = users.filter((u) => u.address?.division === div);
+      const divisionUsers = filteredUsers.filter((u) => u.address?.division === div);
       const customers = divisionUsers.filter((u) => u.role === "customer" || u.role === "client").length;
       const decorators = divisionUsers.filter((u) => u.role === "decorator").length;
       const agents = divisionUsers.filter((u) => u.role === "agent").length;
@@ -209,6 +243,7 @@ const getMarketDivisionUsers = async (req, res) => {
 
     res.send({
       success: true,
+      timeFilter,
       data: result,
     });
   } catch (error) {
@@ -225,14 +260,19 @@ const getMarketDivisionUsers = async (req, res) => {
 // =========================================================================
 const getCategoryServiceCount = async (req, res) => {
   try {
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+
     const [categories, services] = await Promise.all([
       categoryCollection.find({}).toArray(),
       serviceCollection.find({}).toArray(),
     ]);
 
+    const filteredServices = services.filter((s) => isInDateRange(s, range));
+
     const result = categories.map((cat) => {
       const catName = cat.name;
-      const catServices = services.filter(
+      const catServices = filteredServices.filter(
         (s) =>
           s.category === catName ||
           s.categoryName === catName ||
@@ -258,6 +298,7 @@ const getCategoryServiceCount = async (req, res) => {
 
     res.send({
       success: true,
+      timeFilter,
       data: result,
     });
   } catch (error) {
@@ -274,7 +315,8 @@ const getCategoryServiceCount = async (req, res) => {
 // =========================================================================
 const getCategoryBookings = async (req, res) => {
   try {
-    const { division = "all" } = req.query;
+    const { division = "all", timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
 
     const [categories, bookings, users] = await Promise.all([
       categoryCollection.find({}).toArray(),
@@ -282,13 +324,14 @@ const getCategoryBookings = async (req, res) => {
       userCollection.find({}).toArray(),
     ]);
 
+    const filteredBookingsByDate = bookings.filter((b) => isInDateRange(b, range));
     const customerMap = new Map(users.map((u) => [u._id.toString(), u]));
 
     // Filter bookings by division if specified
     const filteredBookings =
       division === "all"
-        ? bookings
-        : bookings.filter((b) => {
+        ? filteredBookingsByDate
+        : filteredBookingsByDate.filter((b) => {
             const customer = customerMap.get(b.customerId?.toString());
             return customer?.address?.division === division;
           });
@@ -314,6 +357,7 @@ const getCategoryBookings = async (req, res) => {
 
     res.send({
       success: true,
+      timeFilter,
       selectedDivision: division,
       divisions: ["all", ...BANGLADESH_DIVISIONS],
       data: result,
@@ -332,12 +376,17 @@ const getCategoryBookings = async (req, res) => {
 // =========================================================================
 const getTopRevenueCategories = async (req, res) => {
   try {
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+
     const [categories, bookings] = await Promise.all([
       categoryCollection.find({}).toArray(),
       bookingCollection.find({}).toArray(),
     ]);
 
-    const totalRevenueAll = bookings.reduce(
+    const filteredBookings = bookings.filter((b) => isInDateRange(b, range));
+
+    const totalRevenueAll = filteredBookings.reduce(
       (sum, b) => sum + (b.pricingBreakdown?.grandTotal || b.serviceSnapshot?.unitPrice || 0),
       0
     );
@@ -345,7 +394,7 @@ const getTopRevenueCategories = async (req, res) => {
     const result = categories
       .map((cat) => {
         const catName = cat.name;
-        const catBookings = bookings.filter(
+        const catBookings = filteredBookings.filter(
           (b) => b.serviceSnapshot?.category === catName || b.category === catName
         );
 
@@ -368,6 +417,7 @@ const getTopRevenueCategories = async (req, res) => {
 
     res.send({
       success: true,
+      timeFilter,
       totalRevenue: totalRevenueAll,
       data: result,
     });
@@ -385,14 +435,17 @@ const getTopRevenueCategories = async (req, res) => {
 // =========================================================================
 const getBookingCurve365 = async (req, res) => {
   try {
-    const bookings = await bookingCollection.find({}).toArray();
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
 
-    // Group by bi-weekly or monthly intervals across the timeline for a smooth curve
+    const bookings = await bookingCollection.find({}).toArray();
+    const filteredBookings = bookings.filter((b) => isInDateRange(b, range));
+
+    // Group by weekly intervals across the timeline for a smooth curve
     const intervalMap = {};
 
-    bookings.forEach((b) => {
+    filteredBookings.forEach((b) => {
       const date = b.createdAt ? new Date(b.createdAt) : new Date();
-      // Group by year and calendar week or 10-day block for an organic smooth curve
       const week = Math.ceil(date.getDate() / 7);
       const sortKey = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-W${week}`;
       const label = `${date.toLocaleDateString("en-US", { month: "short" })} W${week}`;
@@ -421,13 +474,14 @@ const getBookingCurve365 = async (req, res) => {
 
     res.send({
       success: true,
-      totalBookings: bookings.length,
+      timeFilter,
+      totalBookings: filteredBookings.length,
       data: curve,
     });
   } catch (error) {
     res.status(500).send({
       success: false,
-      message: "Error fetching 365-day booking curve",
+      message: "Error fetching booking curve",
       error: error.message,
     });
   }
@@ -438,15 +492,19 @@ const getBookingCurve365 = async (req, res) => {
 // =========================================================================
 const getDivisionWiseBookings = async (req, res) => {
   try {
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+
     const [bookings, users] = await Promise.all([
       bookingCollection.find({}).toArray(),
       userCollection.find({}).toArray(),
     ]);
 
+    const filteredBookings = bookings.filter((b) => isInDateRange(b, range));
     const customerMap = new Map(users.map((u) => [u._id.toString(), u]));
 
     const result = BANGLADESH_DIVISIONS.map((div) => {
-      const divBookings = bookings.filter((b) => {
+      const divBookings = filteredBookings.filter((b) => {
         const cust = customerMap.get(b.customerId?.toString());
         return cust?.address?.division === div;
       });
@@ -467,6 +525,7 @@ const getDivisionWiseBookings = async (req, res) => {
 
     res.send({
       success: true,
+      timeFilter,
       data: result,
     });
   } catch (error) {
@@ -483,6 +542,9 @@ const getDivisionWiseBookings = async (req, res) => {
 // =========================================================================
 const getTopDecorators = async (req, res) => {
   try {
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+
     const [decorators, bookings, reviews, users] = await Promise.all([
       decoratorCollection.find({}).toArray(),
       bookingCollection.find({}).toArray(),
@@ -490,8 +552,11 @@ const getTopDecorators = async (req, res) => {
       userCollection.find({ role: "decorator" }).toArray(),
     ]);
 
+    const filteredBookings = bookings.filter((b) => isInDateRange(b, range));
+    const filteredReviews = reviews.filter((r) => isInDateRange(r, range));
+
     const decoratorBookingsMap = {};
-    bookings.forEach((b) => {
+    filteredBookings.forEach((b) => {
       const dId = b.decoratorId?.toString();
       if (!dId) return;
       if (!decoratorBookingsMap[dId]) {
@@ -508,7 +573,7 @@ const getTopDecorators = async (req, res) => {
       .map((d) => {
         const dId = d._id.toString();
         const stats = decoratorBookingsMap[dId] || { total: 0, completed: 0, revenue: 0 };
-        const dReviews = reviews.filter((r) => r.decoratorId?.toString() === dId);
+        const dReviews = filteredReviews.filter((r) => r.decoratorId?.toString() === dId);
         const avgRating =
           dReviews.length > 0
             ? Number(
@@ -543,6 +608,7 @@ const getTopDecorators = async (req, res) => {
 
     res.send({
       success: true,
+      timeFilter,
       data: topDecorators,
     });
   } catch (error) {
@@ -559,6 +625,9 @@ const getTopDecorators = async (req, res) => {
 // =========================================================================
 const getTopAgents = async (req, res) => {
   try {
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+
     const [agents, bookings, reviews, users] = await Promise.all([
       agentCollection.find({}).toArray(),
       bookingCollection.find({}).toArray(),
@@ -566,8 +635,11 @@ const getTopAgents = async (req, res) => {
       userCollection.find({ role: "agent" }).toArray(),
     ]);
 
+    const filteredBookings = bookings.filter((b) => isInDateRange(b, range));
+    const filteredReviews = reviews.filter((r) => isInDateRange(r, range));
+
     const agentBookingsMap = {};
-    bookings.forEach((b) => {
+    filteredBookings.forEach((b) => {
       const aId = b.assignedAgentId?.toString();
       if (!aId) return;
       if (!agentBookingsMap[aId]) {
@@ -583,7 +655,7 @@ const getTopAgents = async (req, res) => {
       .map((a) => {
         const aId = a._id.toString();
         const stats = agentBookingsMap[aId] || { total: 0, completed: 0 };
-        const aReviews = reviews.filter((r) => r.agentId?.toString() === aId);
+        const aReviews = filteredReviews.filter((r) => r.agentId?.toString() === aId);
         const avgRating =
           aReviews.length > 0
             ? Number(
@@ -621,6 +693,7 @@ const getTopAgents = async (req, res) => {
 
     res.send({
       success: true,
+      timeFilter,
       data: topAgents,
     });
   } catch (error) {
