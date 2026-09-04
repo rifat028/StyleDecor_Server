@@ -302,8 +302,6 @@ const getUnsettledPayments = async (req, res) => {
     } = req.query;
 
     const range = resolveDateRange(timeFilter, startDate, endDate);
-    const currentPage = Math.max(1, parseInt(page, 10) || 1);
-    const pageSize = Math.max(1, parseInt(limit, 10) || 10);
 
     const [completedBookings, platformFeePayments, users, decorators, agents] =
       await Promise.all([
@@ -411,11 +409,15 @@ const getUnsettledPayments = async (req, res) => {
       0
     );
 
+    const isAll = limit === "all" || !limit || limit === "0";
+    const currentPage = isAll ? 1 : Math.max(1, parseInt(page, 10) || 1);
+    const pageSize = isAll ? totalUnsettled : Math.max(1, parseInt(limit, 10) || 10);
+
     searchFiltered.sort((a, b) => new Date(b.completionDate) - new Date(a.completionDate));
 
-    const totalPages = Math.ceil(totalUnsettled / pageSize) || 1;
+    const totalPages = isAll ? 1 : Math.ceil(totalUnsettled / pageSize) || 1;
     const startIndex = (currentPage - 1) * pageSize;
-    const paginatedData = searchFiltered.slice(startIndex, startIndex + pageSize);
+    const paginatedData = isAll ? searchFiltered : searchFiltered.slice(startIndex, startIndex + pageSize);
 
     res.send({
       success: true,
