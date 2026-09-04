@@ -1,0 +1,456 @@
+// ========== Imports ==========
+const { ObjectId } = require("mongodb");
+const {
+  bookingCollection,
+  paymentCollection,
+  userCollection,
+  decoratorCollection,
+  agentCollection,
+  serviceCollection,
+} = require("../models/collections");
+
+// =========================================================================
+// Time Filtering Helper
+// =========================================================================
+const resolveDateRange = (timeFilter = "max", startDate, endDate) => {
+  const filterKey = (timeFilter || "max").toLowerCase().trim().replace(/[-_]/g, " ");
+
+  if (filterKey === "max" || filterKey === "all") {
+    return { start: null, end: null, isMax: true };
+  }
+
+  const now = new Date();
+  let start = null;
+  let end = new Date(now);
+
+  switch (filterKey) {
+    case "today": {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0, 0);
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 23, 59, 59, 999);
+      break;
+    }
+    case "yesterday": {
+      start = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 0, 0, 0, 0);
+      end = new Date(now.getFullYear(), now.getMonth(), now.getDate() - 1, 23, 59, 59, 999);
+      break;
+    }
+    case "last 7 days":
+    case "last7days":
+    case "7 days": {
+      start = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      break;
+    }
+    case "this week":
+    case "thisweek": {
+      const day = now.getDay();
+      const diff = now.getDate() - day + (day === 0 ? -6 : 1);
+      start = new Date(now.getFullYear(), now.getMonth(), diff, 0, 0, 0, 0);
+      break;
+    }
+    case "last 30 days":
+    case "last30days":
+    case "30 days": {
+      start = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+      break;
+    }
+    case "this month":
+    case "thismonth": {
+      start = new Date(now.getFullYear(), now.getMonth(), 1, 0, 0, 0, 0);
+      break;
+    }
+    case "last 365 days":
+    case "last365days":
+    case "365 days": {
+      start = new Date(now.getTime() - 365 * 24 * 60 * 60 * 1000);
+      break;
+    }
+    case "this year":
+    case "thisyear": {
+      start = new Date(now.getFullYear(), 0, 1, 0, 0, 0, 0);
+      break;
+    }
+    case "custom": {
+      if (startDate) {
+        start = new Date(startDate);
+        start.setHours(0, 0, 0, 0);
+      }
+      if (endDate) {
+        end = new Date(endDate);
+        end.setHours(23, 59, 59, 999);
+      }
+      break;
+    }
+    default: {
+      return { start: null, end: null, isMax: true };
+    }
+  }
+
+  return { start, end, isMax: false };
+};
+
+// Helper to check if a document falls within range
+const isInDateRange = (doc, range, dateFields = ["createdAt", "date", "eventDate"]) => {
+  if (range.isMax || (!range.start && !range.end)) return true;
+
+  let docDate = null;
+  for (const field of dateFields) {
+    if (doc[field]) {
+      docDate = new Date(doc[field]);
+      break;
+    }
+  }
+
+  if (!docDate || isNaN(docDate.getTime())) {
+    if (doc._id && typeof doc._id.getTimestamp === "function") {
+      docDate = doc._id.getTimestamp();
+    }
+  }
+
+  if (!docDate || isNaN(docDate.getTime())) return false;
+
+  if (range.start && docDate < range.start) return false;
+  if (range.end && docDate > range.end) return false;
+  return true;
+};
+
+// Format status label
+const formatStatusLabel = (status = "") => {
+  if (!status) return "Unknown";
+  return status
+    .split(/[-_]/)
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1).toLowerCase())
+    .join(" ");
+};
+
+// 1. 6 Data Cards
+const getKpiCards = async (req, res) => {
+  try {
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+
+    const [decorators, users, services, bookings] = await Promise.all([
+      decoratorCollection.find({}).toArray(),
+      userCollection.find({}).toArray(),
+      serviceCollection.find({}).toArray(),
+      bookingCollection.find({}).toArray(),
+    ]);
+
+    const filteredDecorators = decorators.filter((d) => isInDateRange(d, range));
+    const filteredUsers = users.filter((u) => isInDateRange(u, range));
+    const filteredServices = services.filter((s) => isInDateRange(s, range));
+    const filteredBookings = bookings.filter((b) => isInDateRange(b, range));
+
+    const totalDecorators = filteredDecorators.length;
+    const pendingDecorators = filteredDecorators.filter((d) => {
+      const st = (d.status || "").toLowerCase();
+      const ver = (d.verification?.status || "").toLowerCase();
+      return st === "pending" || ver === "pending" || d.isVerified === false;
+    }).length;
+
+    const totalAgents = filteredUsers.filter((u) => u.role === "agent").length;
+    const totalCustomers = filteredUsers.filter(
+      (u) => u.role === "customer" || u.role === "client" || !u.role
+    ).length;
+
+    const totalActiveServices = filteredServices.filter((s) => {
+      const st = (s.status || "active").toLowerCase();
+      return st === "active" || !s.status;
+    }).length;
+
+    const totalBookings = filteredBookings.length;
+
+    res.send({
+      success: true,
+      timeFilter,
+      data: {
+        totalDecorators,
+        pendingDecorators,
+        totalAgents,
+        totalCustomers,
+        totalActiveServices,
+        totalBookings,
+      },
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error fetching dashboard KPI cards",
+      error: error.message,
+    });
+  }
+};
+
+// 2. Status-Wise Decorator Distribution
+const getDecoratorStatusDistribution = async (req, res) => {
+  try {
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+
+    const decorators = await decoratorCollection.find({}).toArray();
+    const filtered = decorators.filter((d) => isInDateRange(d, range));
+
+    const statusCounts = {};
+    filtered.forEach((d) => {
+      const rawStatus = (d.status || "active").toLowerCase();
+      statusCounts[rawStatus] = (statusCounts[rawStatus] || 0) + 1;
+    });
+
+    const total = filtered.length;
+    const data = Object.entries(statusCounts).map(([statusKey, count]) => ({
+      status: statusKey,
+      name: formatStatusLabel(statusKey),
+      value: count,
+      count,
+      percentage: total > 0 ? Number(((count / total) * 100).toFixed(1)) : 0,
+    }));
+
+    res.send({
+      success: true,
+      timeFilter,
+      total,
+      data,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error fetching decorator status distribution",
+      error: error.message,
+    });
+  }
+};
+
+// 3. Status-Wise Service Distribution
+const getServiceStatusDistribution = async (req, res) => {
+  try {
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+
+    const services = await serviceCollection.find({}).toArray();
+    const filtered = services.filter((s) => isInDateRange(s, range));
+
+    const statusCounts = {};
+    filtered.forEach((s) => {
+      const rawStatus = (s.status || "active").toLowerCase();
+      statusCounts[rawStatus] = (statusCounts[rawStatus] || 0) + 1;
+    });
+
+    const total = filtered.length;
+    const data = Object.entries(statusCounts).map(([statusKey, count]) => ({
+      status: statusKey,
+      name: formatStatusLabel(statusKey),
+      value: count,
+      count,
+      percentage: total > 0 ? Number(((count / total) * 100).toFixed(1)) : 0,
+    }));
+
+    res.send({
+      success: true,
+      timeFilter,
+      total,
+      data,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error fetching service status distribution",
+      error: error.message,
+    });
+  }
+};
+
+// 4. Booking Status Distribution (Current Date Filtered)
+const getBookingStatusDistribution = async (req, res) => {
+  try {
+    const { timeFilter = "max", startDate, endDate } = req.query;
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+
+    const bookings = await bookingCollection.find({}).toArray();
+    const filtered = bookings.filter((b) => isInDateRange(b, range));
+
+    const statusCounts = {};
+    filtered.forEach((b) => {
+      const rawStatus = (b.status || "pending").toLowerCase();
+      statusCounts[rawStatus] = (statusCounts[rawStatus] || 0) + 1;
+    });
+
+    const total = filtered.length;
+    const data = Object.entries(statusCounts)
+      .map(([statusKey, count]) => ({
+        status: statusKey,
+        name: formatStatusLabel(statusKey),
+        value: count,
+        count,
+        percentage: total > 0 ? Number(((count / total) * 100).toFixed(1)) : 0,
+      }))
+      .sort((a, b) => b.value - a.value);
+
+    res.send({
+      success: true,
+      timeFilter,
+      total,
+      data,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error fetching booking status distribution",
+      error: error.message,
+    });
+  }
+};
+
+// 5. Unsettled Payments Table
+const getUnsettledPayments = async (req, res) => {
+  try {
+    const {
+      timeFilter = "max",
+      startDate,
+      endDate,
+      page = 1,
+      limit = 10,
+      search = "",
+    } = req.query;
+
+    const range = resolveDateRange(timeFilter, startDate, endDate);
+    const currentPage = Math.max(1, parseInt(page, 10) || 1);
+    const pageSize = Math.max(1, parseInt(limit, 10) || 10);
+
+    const [completedBookings, platformFeePayments, users, decorators, agents] =
+      await Promise.all([
+        bookingCollection.find({ status: "completed" }).toArray(),
+        paymentCollection.find({ paymentType: "platform_fee" }).toArray(),
+        userCollection.find({}).toArray(),
+        decoratorCollection.find({}).toArray(),
+        agentCollection.find({}).toArray(),
+      ]);
+
+    const paidBookingIds = new Set(
+      platformFeePayments.map((p) => p.bookingId?.toString()).filter(Boolean)
+    );
+
+    const userMap = new Map(users.map((u) => [u._id.toString(), u]));
+    const decoratorMap = new Map(decorators.map((d) => [d._id.toString(), d]));
+    const agentMap = new Map(agents.map((a) => [a._id.toString(), a]));
+
+    const unsettledList = completedBookings
+      .filter((b) => {
+        const isNotPaid = !paidBookingIds.has(b._id.toString());
+        const inDate = isInDateRange(b, range);
+        return isNotPaid && inDate;
+      })
+      .map((b) => {
+        const cust = b.customerId ? userMap.get(b.customerId.toString()) : null;
+        const dec = b.decoratorId ? decoratorMap.get(b.decoratorId.toString()) : null;
+        const agent = b.assignedAgentId ? agentMap.get(b.assignedAgentId.toString()) : null;
+
+        const grandTotal =
+          b.pricingBreakdown?.grandTotal ||
+          b.pricingBreakdown?.subtotal ||
+          b.serviceSnapshot?.unitPrice ||
+          0;
+
+        const platformFee = Math.round(grandTotal * 0.1);
+
+        const bookingCode =
+          b.bookingCode ||
+          b.bookingReference ||
+          `BK-${b._id.toString().slice(-8).toUpperCase()}`;
+
+        const serviceTitle =
+          b.serviceSnapshot?.title ||
+          b.serviceSnapshot?.serviceName ||
+          b.title ||
+          "Custom Event Decoration";
+
+        const category =
+          b.serviceSnapshot?.category || b.category || "General Decor";
+
+        const eventDate =
+          b.eventDetails?.eventDate ||
+          b.date ||
+          b.createdAt ||
+          (typeof b._id.getTimestamp === "function" ? b._id.getTimestamp() : new Date());
+
+        return {
+          _id: b._id,
+          bookingCode,
+          serviceTitle,
+          category,
+          customer: {
+            name: cust?.name || b.customerName || b.clientName || "Valued Customer",
+            email: cust?.email || b.customerEmail || b.clientEmail || "N/A",
+            phone: cust?.phone || b.contact || "N/A",
+          },
+          decorator: {
+            _id: dec?._id || b.decoratorId,
+            agencyName: dec?.businessName || dec?.agencyName || dec?.name || "Decor Agency",
+            phone: dec?.contactInfo?.phone || "N/A",
+            division: dec?.contactInfo?.division || "N/A",
+          },
+          agent: {
+            _id: agent?._id || b.assignedAgentId,
+            name: agent?.name || "Unassigned",
+          },
+          grandTotal,
+          platformFee,
+          settlementStatus: "unsettled",
+          completionDate: b.updatedAt || b.createdAt || (typeof b._id.getTimestamp === "function" ? b._id.getTimestamp() : new Date()),
+          eventDate,
+        };
+      });
+
+    const searchQuery = search.toLowerCase().trim();
+    const searchFiltered = searchQuery
+      ? unsettledList.filter(
+          (item) =>
+            item.bookingCode.toLowerCase().includes(searchQuery) ||
+            item.customer.name.toLowerCase().includes(searchQuery) ||
+            item.customer.email.toLowerCase().includes(searchQuery) ||
+            item.decorator.agencyName.toLowerCase().includes(searchQuery) ||
+            item.serviceTitle.toLowerCase().includes(searchQuery)
+        )
+      : unsettledList;
+
+    const totalUnsettled = searchFiltered.length;
+    const totalUnsettledAmount = searchFiltered.reduce(
+      (sum, item) => sum + item.platformFee,
+      0
+    );
+    const totalOrderValue = searchFiltered.reduce(
+      (sum, item) => sum + item.grandTotal,
+      0
+    );
+
+    searchFiltered.sort((a, b) => new Date(b.completionDate) - new Date(a.completionDate));
+
+    const totalPages = Math.ceil(totalUnsettled / pageSize) || 1;
+    const startIndex = (currentPage - 1) * pageSize;
+    const paginatedData = searchFiltered.slice(startIndex, startIndex + pageSize);
+
+    res.send({
+      success: true,
+      timeFilter,
+      page: currentPage,
+      limit: pageSize,
+      totalPages,
+      totalUnsettled,
+      totalUnsettledAmount,
+      totalOrderValue,
+      data: paginatedData,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error fetching unsettled payments",
+      error: error.message,
+    });
+  }
+};
+
+module.exports = {
+  getKpiCards,
+  getDecoratorStatusDistribution,
+  getServiceStatusDistribution,
+  getBookingStatusDistribution,
+  getUnsettledPayments,
+};

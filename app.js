@@ -11,6 +11,7 @@ const categoryRoutes = require("./routes/categoryRoutes");
 const agentRoutes = require("./routes/agentRoutes");
 const reviewRoutes = require("./routes/reviewRoutes");
 const analyticsRoutes = require("./routes/analyticsRoutes");
+const dashboardRoutes = require("./routes/dashboardRoutes");
 
 // ========== Initialize Express App ==========
 const app = express();
@@ -34,6 +35,7 @@ app.use("/categories", categoryRoutes);
 app.use("/agents", agentRoutes);
 app.use("/reviews", reviewRoutes);
 app.use("/analytics", analyticsRoutes);
+app.use("/dashboard", dashboardRoutes);
 
 // Legacy root aliases for payment callbacks
 app.patch("/payment-success", (req, res, next) => {
