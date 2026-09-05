@@ -9,6 +9,7 @@ const bookingController = require("../controllers/bookingController");
 // 1. Static / Specific Named Routes
 router.get("/stats", verifyFbToken, verifyAdmin, bookingController.getBookingStats);
 router.get("/my-bookings", verifyFbToken, bookingController.getMyBookings);
+router.get("/customer/:customerId", verifyFbToken, bookingController.getBookingsByCustomer);
 router.get("/user/:email", verifyFbToken, bookingController.getMyBookings);
 router.get("/client/:email", verifyFbToken, bookingController.getMyBookings);
 router.get("/decorator/:decoratorId", verifyFbToken, bookingController.getBookingsByDecorator);

@@ -196,12 +196,22 @@ const getMyBookings = async (req, res) => {
     const email = req.params.email || req.decoded_email;
     const user = await userCollection.findOne({ email });
 
-    const query = {};
+    const orConditions = [];
     if (user) {
-      query.$or = [{ customerId: user._id }, { clientEmail: email }];
-    } else {
-      query.clientEmail = email;
+      orConditions.push(
+        { customerId: user._id },
+        { customerId: user._id.toString() }
+      );
     }
+    if (email) {
+      orConditions.push(
+        { clientEmail: email },
+        { customerEmail: email },
+        { userEmail: email }
+      );
+    }
+
+    const query = orConditions.length > 0 ? { $or: orConditions } : {};
 
     const rawBookings = await bookingCollection
       .find(query)
@@ -215,6 +225,58 @@ const getMyBookings = async (req, res) => {
     res.status(500).send({
       success: false,
       message: "Error fetching my bookings",
+      error: error.message,
+    });
+  }
+};
+
+// ========== Get Bookings by Customer ID ==========
+const getBookingsByCustomer = async (req, res) => {
+  try {
+    const { customerId } = req.params;
+
+    if (!ObjectId.isValid(customerId)) {
+      return res.status(400).send({ success: false, message: "Invalid customer ID format" });
+    }
+
+    const custObjId = new ObjectId(customerId);
+    const user = await userCollection.findOne({ _id: custObjId });
+
+    const orConditions = [
+      { customerId: custObjId },
+      { customerId: customerId },
+    ];
+    if (user?.email) {
+      orConditions.push(
+        { clientEmail: user.email },
+        { customerEmail: user.email },
+        { userEmail: user.email }
+      );
+    }
+    if (req.decoded_email) {
+      orConditions.push(
+        { clientEmail: req.decoded_email },
+        { customerEmail: req.decoded_email },
+        { userEmail: req.decoded_email }
+      );
+    }
+
+    const rawBookings = await bookingCollection
+      .find({ $or: orConditions })
+      .sort({ createdAt: -1, _id: -1 })
+      .toArray();
+
+    const data = await enrichBookings(rawBookings);
+
+    res.send({
+      success: true,
+      count: data.length,
+      data,
+    });
+  } catch (error) {
+    res.status(500).send({
+      success: false,
+      message: "Error fetching customer bookings",
       error: error.message,
     });
   }
@@ -689,6 +751,7 @@ module.exports = {
   getBookings,
   getBookingStats,
   getMyBookings,
+  getBookingsByCustomer,
   getBookingsByDecorator,
   getBookingsByAgent,
   getBookingById,

@@ -372,8 +372,33 @@ const getPaymentsByCustomer = async (req, res) => {
       return res.status(400).send({ success: false, message: "Invalid customer ID format" });
     }
 
+    const custObjId = new ObjectId(customerId);
+    const user = await userCollection.findOne({ _id: custObjId });
+
+    const orConditions = [
+      { customerId: custObjId },
+      { customerId: customerId },
+      { "sender.userId": custObjId },
+      { "sender.userId": customerId },
+    ];
+
+    if (user?.email) {
+      orConditions.push(
+        { clientEmail: user.email },
+        { customerEmail: user.email },
+        { "sender.email": user.email }
+      );
+    }
+    if (req.decoded_email) {
+      orConditions.push(
+        { clientEmail: req.decoded_email },
+        { customerEmail: req.decoded_email },
+        { "sender.email": req.decoded_email }
+      );
+    }
+
     const rawPayments = await paymentsCollection
-      .find({ customerId: new ObjectId(customerId) })
+      .find({ $or: orConditions })
       .sort({ createdAt: -1, _id: -1 })
       .toArray();
 
@@ -402,8 +427,19 @@ const getPaymentsByDecorator = async (req, res) => {
       return res.status(400).send({ success: false, message: "Invalid decorator ID format" });
     }
 
+    const decObjId = new ObjectId(decoratorId);
+
     const rawPayments = await paymentsCollection
-      .find({ decoratorId: new ObjectId(decoratorId) })
+      .find({
+        $or: [
+          { decoratorId: decObjId },
+          { decoratorId: decoratorId },
+          { "receiver.decoratorId": decObjId },
+          { "receiver.decoratorId": decoratorId },
+          { "sender.decoratorId": decObjId },
+          { "sender.decoratorId": decoratorId },
+        ],
+      })
       .sort({ createdAt: -1, _id: -1 })
       .toArray();
 
@@ -821,12 +857,26 @@ const getTransactions = async (req, res) => {
     const email = req.query.email || req.decoded_email;
     const user = await userCollection.findOne({ email });
 
-    const query = {};
+    const orConditions = [];
     if (user) {
-      query.$or = [{ customerId: user._id }, { clientEmail: email }];
-    } else {
-      query.clientEmail = email;
+      orConditions.push(
+        { customerId: user._id },
+        { customerId: user._id.toString() },
+        { "sender.userId": user._id },
+        { "sender.userId": user._id.toString() },
+        { clientEmail: email },
+        { customerEmail: email },
+        { "sender.email": email }
+      );
+    } else if (email) {
+      orConditions.push(
+        { clientEmail: email },
+        { customerEmail: email },
+        { "sender.email": email }
+      );
     }
+
+    const query = orConditions.length > 0 ? { $or: orConditions } : {};
 
     const rawPayments = await paymentsCollection
       .find(query)
@@ -835,7 +885,11 @@ const getTransactions = async (req, res) => {
 
     const data = await enrichPayments(rawPayments);
 
-    res.send(data);
+    res.send({
+      success: true,
+      count: data.length,
+      data,
+    });
   } catch (error) {
     res.status(500).send({
       success: false,
