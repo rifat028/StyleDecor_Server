@@ -231,27 +231,61 @@ function generateUsers(counts, auth, dates, decoratorGeos, startDate, currentDat
     }
   });
 
+  // Canonical customer profiles to preserve known credentials and accounts (e.g. user 15: Imtiaz Hossain)
+  const CANONICAL_CUSTOMERS = [
+    { name: "Tanvir Ahmed", email: "tanvir.ahmed.user1@gmail.com", phone: "+8801710093688" },
+    { name: "Rumana Parvin", email: "rumana.parvin.user2@gmail.com", phone: "+8801810094625" },
+    { name: "Kamrul Talukder", email: "kamrul.talukder.user3@gmail.com", phone: "+8801910095562" },
+    { name: "Tamanna Bhuiyan", email: "tamanna.bhuiyan.user4@gmail.com", phone: "+8801310096499" },
+    { name: "Kawsar Munshi", email: "kawsar.munshi.user5@gmail.com", phone: "+8801410097436" },
+    { name: "Chaity Karim", email: "chaity.karim.user6@gmail.com", phone: "+8801510098373" },
+    { name: "Golam Rabbani", email: "golam.rabbani.user7@gmail.com", phone: "+8801610099322" },
+    { name: "Farzana Yasmin", email: "farzana.yasmin.user8@gmail.com", phone: "+8801510100259" },
+    { name: "Mahmudur Rahman", email: "mahmudur.rahman.user9@gmail.com", phone: "+8801710101196" },
+    { name: "Sabrina Mostafa", email: "sabrina.mostafa.user10@gmail.com", phone: "+8801810102133" },
+    { name: "Towhidul Alam", email: "towhidul.alam.user11@gmail.com", phone: "+8801910103070" },
+    { name: "Humaira Khatun", email: "humaira.khatun.user12@gmail.com", phone: "+8801310104007" },
+    { name: "Rashedul Islam", email: "rashedul.islam.user13@gmail.com", phone: "+8801610104944" },
+    { name: "Nusrat Sharmin", email: "nusrat.sharmin.user14@gmail.com", phone: "+8801510105881" },
+    { name: "Imtiaz Hossain", email: "imtiaz.hossain.user15@gmail.com", phone: "+8801710106818" },
+    { name: "Jannatul Ferdous", email: "jannatul.ferdous.user16@gmail.com", phone: "+8801810107755" },
+    { name: "Zahidul Karim", email: "zahidul.karim.user17@gmail.com", phone: "+8801910108692" },
+    { name: "Afsana Mimi", email: "afsana.mimi.user18@gmail.com", phone: "+8801310109629" },
+    { name: "Kazi Nazrul", email: "kazi.nazrul.user19@gmail.com", phone: "+8801610110566" },
+    { name: "Sumaiya Akter", email: "sumaiya.akter.user20@gmail.com", phone: "+8801510111503" },
+  ];
+
   // Customer users (1 in every single one of the 64 districts)
   const customerUserList = [];
   let custIdx = 1;
   ALL_DISTRICTS_FLAT.forEach((distObj, idx) => {
     const userId = createObjectId("66be18a1f2c4a91b88", userGlobalIdx++);
     const isMale = idx % 2 === 0;
-    const firstName = isMale
-      ? FIRST_NAMES_MALE[(idx * 7) % FIRST_NAMES_MALE.length]
-      : FIRST_NAMES_FEMALE[(idx * 7) % FIRST_NAMES_FEMALE.length];
-    let lastName = isMale
-      ? LAST_NAMES_MALE[(idx * 5) % LAST_NAMES_MALE.length]
-      : LAST_NAMES_FEMALE[(idx * 5) % LAST_NAMES_FEMALE.length];
-    if (firstName.toLowerCase() === lastName.toLowerCase()) {
-      lastName = isMale
-        ? LAST_NAMES_MALE[(idx * 5 + 1) % LAST_NAMES_MALE.length]
-        : LAST_NAMES_FEMALE[(idx * 5 + 1) % LAST_NAMES_FEMALE.length];
+
+    let fullName, email, phone;
+    if (custIdx <= CANONICAL_CUSTOMERS.length) {
+      const canonical = CANONICAL_CUSTOMERS[custIdx - 1];
+      fullName = canonical.name;
+      email = canonical.email;
+      phone = canonical.phone;
+    } else {
+      const firstName = isMale
+        ? FIRST_NAMES_MALE[(idx * 7) % FIRST_NAMES_MALE.length]
+        : FIRST_NAMES_FEMALE[(idx * 7) % FIRST_NAMES_FEMALE.length];
+      let lastName = isMale
+        ? LAST_NAMES_MALE[(idx * 5) % LAST_NAMES_MALE.length]
+        : LAST_NAMES_FEMALE[(idx * 5) % LAST_NAMES_FEMALE.length];
+      if (firstName.toLowerCase() === lastName.toLowerCase()) {
+        lastName = isMale
+          ? LAST_NAMES_MALE[(idx * 5 + 1) % LAST_NAMES_MALE.length]
+          : LAST_NAMES_FEMALE[(idx * 5 + 1) % LAST_NAMES_FEMALE.length];
+      }
+      fullName = `${firstName} ${lastName}`;
+      const slug = fullName.toLowerCase().replace(/[^a-z]/g, ".");
+      email = `${slug}.user${custIdx}@gmail.com`;
+      phone = `+88018${String(10000000 + custIdx).padStart(8, "0")}`;
     }
-    const fullName = `${firstName} ${lastName}`;
-    const slug = fullName.toLowerCase().replace(/[^a-z]/g, ".");
-    const email = `${slug}.user${custIdx}@gmail.com`;
-    const phone = `+88018${String(10000000 + custIdx).padStart(8, "0")}`;
+
     const photoUrl = isMale
       ? AVATARS_MALE[(idx + 4) % AVATARS_MALE.length]
       : AVATARS_FEMALE[(idx + 4) % AVATARS_FEMALE.length];
@@ -504,7 +538,7 @@ function generateBookingsPaymentsAndReviews(decorators, services, agents, custom
     for (let b = 0; b < totalBookings; b++) {
       const bookingId = createObjectId("66be18a5f2c4a91b88", bookingCounter);
       const service = decoratorServices[b % decoratorServices.length];
-      const customer = customerUserList[(bookingCounter + b) % customerUserList.length];
+      const customer = customerUserList[(bookingCounter - 1) % customerUserList.length];
       const assignedAgent = decoratorAgents.length > 0 ? decoratorAgents[b % decoratorAgents.length] : null;
 
       let status = "completed";
