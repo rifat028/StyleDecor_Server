@@ -103,7 +103,7 @@ const getDecorators = async (req, res) => {
     // Time / Date Filter
     if (timeFilter && timeFilter !== "max") {
       const range = resolveDateRange(timeFilter, startDate, endDate);
-      const dateQuery = buildDateQuery(["createdAt", "verification.verifiedAt"], range);
+      const dateQuery = buildDateQuery(["createdAt", "updatedAt", "verification.verifiedAt"], range);
       if (dateQuery) {
         query.$and = query.$and || [];
         query.$and.push(dateQuery);
@@ -649,87 +649,22 @@ const deleteDecorator = async (req, res) => {
 };
 
 // ========== Get Decorator Stats (Admin) ==========
-// Aggregates counts by status, verification, featured, and division
+// Aggregates counts by status, verification, featured, and division respecting time filter
 const getDecoratorStats = async (req, res) => {
   try {
     const { timeFilter = "max", startDate, endDate } = req.query;
     const range = resolveDateRange(timeFilter, startDate, endDate);
-    const dateQuery = buildDateQuery(["createdAt", "verification.verifiedAt"], range);
-    const baseQuery = dateQuery || {};
+    const dateQuery = buildDateQuery(["createdAt", "updatedAt", "verification.verifiedAt"], range);
+    const filterQuery = dateQuery || {};
 
-    const total = await decoratorCollection.countDocuments(baseQuery);
-    const pending = await decoratorCollection.countDocuments({ ...baseQuery, status: "pending" });
-    const suspended = await decoratorCollection.countDocuments({ ...baseQuery, status: "suspended" });
-    const active = await decoratorCollection.countDocuments({
-      ...baseQuery,
-      $or: [
-        { status: "active" },
-        { status: { $exists: false } },
-        { status: null },
-        { status: "" },
-      ],
-    });
-    const verified = await decoratorCollection.countDocuments({
-      ...baseQuery,
-      $or: [{ "verification.isVerified": true }, { verification: { $exists: false } }],
-    });
-    const featured = await decoratorCollection.countDocuments({ ...baseQuery, featured: true });
+    const allDecorators = await decoratorCollection.find(filterQuery).toArray();
 
-    // Detailed aggregation with normalized status and division
-    const pipeline = [];
-    if (dateQuery) {
-      pipeline.push({ $match: dateQuery });
-    }
-    pipeline.push(
-      {
-        $project: {
-            status: {
-              $cond: [
-                {
-                  $or: [
-                    { $eq: ["$status", "pending"] },
-                    { $eq: ["$status", "suspended"] },
-                  ],
-                },
-                "$status",
-                "active",
-              ],
-            },
-            isVerified: {
-              $cond: [
-                { $eq: ["$verification.isVerified", true] },
-                true,
-                false,
-              ],
-            },
-            featured: {
-              $cond: [
-                { $eq: ["$featured", true] },
-                true,
-                false,
-              ],
-            },
-            division: {
-              $ifNull: ["$contactInfo.division", { $ifNull: ["$division", "Dhaka"] }],
-            },
-        },
-      },
-      {
-        $group: {
-          _id: {
-            status: "$status",
-            isVerified: "$isVerified",
-            featured: "$featured",
-            division: "$division",
-          },
-          count: { $sum: 1 },
-        },
-      }
-    );
-
-    const detailedAggregation = await decoratorCollection
-      .aggregate(pipeline)
-      .toArray();
+    const total = allDecorators.length;
+    let pending = 0;
+    let suspended = 0;
+    let active = 0;
+    let verified = 0;
+    let featured = 0;
 
     const byStatus = {
       active: { divisions: {} },
@@ -740,23 +675,40 @@ const getDecoratorStats = async (req, res) => {
     };
     const overallDivisions = {};
 
-    detailedAggregation.forEach(({ _id, count }) => {
-      const { status, isVerified, featured, division } = _id;
-      if (!division) return;
+    allDecorators.forEach((d) => {
+      const statusRaw = (d.status || "").toLowerCase().trim();
+      let statusNorm = "active";
+      if (statusRaw === "pending") {
+        statusNorm = "pending";
+        pending++;
+      } else if (statusRaw === "suspended") {
+        statusNorm = "suspended";
+        suspended++;
+      } else {
+        statusNorm = "active";
+        active++;
+      }
 
-      overallDivisions[division] = (overallDivisions[division] || 0) + count;
+      const isVerified = d.verification?.isVerified === true || !d.verification;
+      if (isVerified) verified++;
 
-      if (status && byStatus[status]) {
-        byStatus[status].divisions[division] =
-          (byStatus[status].divisions[division] || 0) + count;
+      const isFeatured = Boolean(d.featured);
+      if (isFeatured) featured++;
+
+      const division = (d.contactInfo?.division || d.division || "Dhaka").trim();
+      overallDivisions[division] = (overallDivisions[division] || 0) + 1;
+
+      if (byStatus[statusNorm]) {
+        byStatus[statusNorm].divisions[division] =
+          (byStatus[statusNorm].divisions[division] || 0) + 1;
       }
       if (isVerified) {
         byStatus.verified.divisions[division] =
-          (byStatus.verified.divisions[division] || 0) + count;
+          (byStatus.verified.divisions[division] || 0) + 1;
       }
-      if (featured) {
+      if (isFeatured) {
         byStatus.featured.divisions[division] =
-          (byStatus.featured.divisions[division] || 0) + count;
+          (byStatus.featured.divisions[division] || 0) + 1;
       }
     });
 

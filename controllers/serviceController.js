@@ -637,13 +637,11 @@ const getServiceStats = async (req, res) => {
     const dateQuery = buildDateQuery(["createdAt", "updatedAt"], range);
     const baseQuery = dateQuery || {};
 
-    const total = await serviceCollection.countDocuments(baseQuery);
-    const active = await serviceCollection.countDocuments({
-      ...baseQuery,
-      $or: [{ status: "active" }, { status: { $exists: false } }],
-    });
-    const inactive = await serviceCollection.countDocuments({ ...baseQuery, status: "inactive" });
-    const featured = await serviceCollection.countDocuments({ ...baseQuery, featured: true });
+    const allServices = await serviceCollection.find(baseQuery).toArray();
+    const total = allServices.length;
+    const active = allServices.filter((s) => s.status === "active" || !s.status).length;
+    const inactive = allServices.filter((s) => s.status === "inactive").length;
+    const featured = allServices.filter((s) => Boolean(s.featured)).length;
 
     const pipeline = [];
     if (dateQuery) {
