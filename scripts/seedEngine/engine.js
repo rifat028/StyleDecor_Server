@@ -144,7 +144,12 @@ function generateUsers(counts, auth, dates, decoratorGeos, startDate, currentDat
       ? AVATARS_MALE[(idx + 1) % AVATARS_MALE.length]
       : AVATARS_FEMALE[(idx + 1) % AVATARS_FEMALE.length];
 
-    const joinDate = interpolateDate(startDate, new Date(Date.UTC(2025, 11, 25)), idx / Math.max(1, decoratorGeos.length - 1));
+    // Issue 2 Fix: Decorator Condition 4 - At least 1-2 decorators per month from Jan 2025 to current month & year (21 months total)
+    const monthIdx = idx < 21 ? idx : [2, 8, 14][idx - 21];
+    const year = 2025 + Math.floor(monthIdx / 12);
+    const month = monthIdx % 12;
+    const day = (monthIdx === 20) ? 1 : (3 + (idx % 18));
+    const joinDate = new Date(Date.UTC(year, month, day, 10, 0, 0));
 
     const userDoc = {
       _id: userId,
@@ -546,21 +551,32 @@ function generateBookingsPaymentsAndReviews(decorators, services, agents, custom
       let eventDate;
       let isCancelled = false;
 
+      // Issue 5 Fix: Booking Condition 5 (paymentStatus only advance_paid or full_paid)
+      // & Booking Condition 10 (Payment unsettled can only be in current month and last month)
       if (b < upcomingCount) {
-        const dayOffset = 2 + b * 5;
+        const dayOffset = 1 + b * 4;
         eventDate = new Date(currentDate.getTime() + dayOffset * 24 * 60 * 60 * 1000);
-        const activeStatuses = ["preparing", "out_for_destination", "in_progress"];
-        status = activeStatuses[b % activeStatuses.length];
-        paymentStatus = b === 0 ? "advance_paid" : "partially_paid";
+        status = b === 0 ? "advance_paid" : (b === 1 ? "preparing" : "in_progress");
+        paymentStatus = "advance_paid";
       } else if (b < upcomingCount + cancelledCount) {
-        const dayOffset = 15 + b * 20;
-        eventDate = new Date(currentDate.getTime() - dayOffset * 24 * 60 * 60 * 1000);
+        const c = b - upcomingCount;
+        if (decorator.createdAt < new Date("2026-08-01T00:00:00.000Z")) {
+          // Last month (August 2026)
+          eventDate = new Date(Date.UTC(2026, 7, 10 + c * 10, 15, 0, 0));
+        } else {
+          // Decorator joined in Aug or Sep 2026: place between decorator.createdAt and currentDate
+          const msDiff = currentDate.getTime() - decorator.createdAt.getTime();
+          eventDate = new Date(decorator.createdAt.getTime() + Math.max(1000 * 60 * 60 * 4, msDiff * (0.3 + c * 0.3)));
+        }
         status = "cancelled";
-        paymentStatus = "cancelled";
+        paymentStatus = "advance_paid";
         isCancelled = true;
       } else {
-        const pastRatio = (b - upcomingCount - cancelledCount) / Math.max(1, completedCount);
-        eventDate = interpolateDate(decorator.createdAt, new Date(currentDate.getTime() - 3 * 24 * 60 * 60 * 1000), pastRatio);
+        const pastIdx = b - upcomingCount - cancelledCount;
+        const pastRatio = (pastIdx + 0.5) / completedCount;
+        const startMs = decorator.createdAt.getTime() + 1000 * 60 * 60 * 6;
+        const endMs = currentDate.getTime() - 1000 * 60 * 60 * 24;
+        eventDate = new Date(startMs + (endMs - startMs) * pastRatio);
         status = "completed";
         paymentStatus = "full_paid";
       }
@@ -577,7 +593,7 @@ function generateBookingsPaymentsAndReviews(decorators, services, agents, custom
       const isAdvanceOnly = status === "advance_paid" || status === "draft";
       const actualAssignedAgentId = isAdvanceOnly ? null : (assignedAgent ? assignedAgent._id : null);
 
-      const paidAmount = paymentStatus === "full_paid" ? grandTotal : (paymentStatus === "advance_paid" || paymentStatus === "partially_paid" ? depositAmount : 0);
+      const paidAmount = paymentStatus === "full_paid" ? grandTotal : depositAmount;
       const dueAmount = grandTotal - paidAmount;
 
       const dateStr = bookingCreatedAt.toISOString().slice(0, 10).replace(/-/g, "");

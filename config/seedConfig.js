@@ -49,7 +49,7 @@ const SEED_CONFIG = {
   dates: {
     startYear: 2025,
     startMonth: 0,                   // 0 = January 2025
-    currentDate: new Date("2026-08-22T10:00:00.000Z"),
+    currentDate: new Date("2026-09-05T14:00:00.000Z"),
     minUsersPerMonth: 3,             // >= 3-4 users created per month
     minDecoratorsPerMonth: 1,        // >= 1-2 decorators registered per month
     bookingAdvanceDaysMin: 3,        // Booking created 3-10 days before eventDate
