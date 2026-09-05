@@ -679,7 +679,7 @@ const getAllReviewsAdmin = async (req, res) => {
     const query = {};
 
     const dateRange = resolveDateRange(timeFilter, startDate, endDate);
-    const dateQuery = buildDateQuery(["createdAt", "updatedAt"], dateRange);
+    const dateQuery = buildDateQuery(["createdAt"], dateRange);
     if (dateQuery) {
       Object.assign(query, dateQuery);
     }

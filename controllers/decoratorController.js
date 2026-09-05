@@ -103,7 +103,7 @@ const getDecorators = async (req, res) => {
     // Time / Date Filter
     if (timeFilter && timeFilter !== "max") {
       const range = resolveDateRange(timeFilter, startDate, endDate);
-      const dateQuery = buildDateQuery(["createdAt", "updatedAt", "verification.verifiedAt"], range);
+      const dateQuery = buildDateQuery(["verification.verifiedAt", "verifiedAt"], range);
       if (dateQuery) {
         query.$and = query.$and || [];
         query.$and.push(dateQuery);
@@ -654,7 +654,7 @@ const getDecoratorStats = async (req, res) => {
   try {
     const { timeFilter = "max", startDate, endDate } = req.query;
     const range = resolveDateRange(timeFilter, startDate, endDate);
-    const dateQuery = buildDateQuery(["createdAt", "updatedAt", "verification.verifiedAt"], range);
+    const dateQuery = buildDateQuery(["verification.verifiedAt", "verifiedAt"], range);
     const filterQuery = dateQuery || {};
 
     const allDecorators = await decoratorCollection.find(filterQuery).toArray();

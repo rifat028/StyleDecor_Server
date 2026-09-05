@@ -98,7 +98,7 @@ const getAllUsers = async (req, res) => {
     // Time / Date Filter
     if (timeFilter && timeFilter !== "max") {
       const range = resolveDateRange(timeFilter, startDate, endDate);
-      const dateQuery = buildDateQuery(["createdAt", "updatedAt"], range);
+      const dateQuery = buildDateQuery(["createdAt"], range);
       if (dateQuery) {
         andConditions.push(dateQuery);
       }
@@ -309,7 +309,7 @@ const getUserStats = async (req, res) => {
   try {
     const { timeFilter = "max", startDate, endDate } = req.query;
     const range = resolveDateRange(timeFilter, startDate, endDate);
-    const dateQuery = buildDateQuery(["createdAt", "updatedAt"], range);
+    const dateQuery = buildDateQuery(["createdAt"], range);
     const baseQuery = dateQuery || {};
 
     const totalUsers = await userCollection.countDocuments(baseQuery);

@@ -494,7 +494,7 @@ const getAgents = async (req, res) => {
     // Time / Date Filter
     if (timeFilter && timeFilter !== "max") {
       const range = resolveDateRange(timeFilter, startDate, endDate);
-      const dateQuery = buildDateQuery(["createdAt", "joinedAt", "updatedAt"], range);
+      const dateQuery = buildDateQuery(["createdAt"], range);
       if (dateQuery) {
         andConditions.push(dateQuery);
       }
@@ -600,7 +600,7 @@ const getAgentStats = async (req, res) => {
   try {
     const { timeFilter = "max", startDate, endDate } = req.query;
     const range = resolveDateRange(timeFilter, startDate, endDate);
-    const dateQuery = buildDateQuery(["createdAt", "joinedAt", "updatedAt"], range);
+    const dateQuery = buildDateQuery(["createdAt"], range);
     const filterQuery = dateQuery || {};
 
     const allAgents = await agentCollection.find(filterQuery).toArray();

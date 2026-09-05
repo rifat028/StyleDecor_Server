@@ -50,7 +50,7 @@ const getServices = async (req, res) => {
     // Time / Date Filter
     if (timeFilter && timeFilter !== "max") {
       const range = resolveDateRange(timeFilter, startDate, endDate);
-      const dateQuery = buildDateQuery(["createdAt", "updatedAt"], range);
+      const dateQuery = buildDateQuery(["createdAt"], range);
       if (dateQuery) {
         query.$and = query.$and || [];
         query.$and.push(dateQuery);
@@ -634,7 +634,7 @@ const getServiceStats = async (req, res) => {
   try {
     const { timeFilter = "max", startDate, endDate } = req.query;
     const range = resolveDateRange(timeFilter, startDate, endDate);
-    const dateQuery = buildDateQuery(["createdAt", "updatedAt"], range);
+    const dateQuery = buildDateQuery(["createdAt"], range);
     const baseQuery = dateQuery || {};
 
     const allServices = await serviceCollection.find(baseQuery).toArray();
